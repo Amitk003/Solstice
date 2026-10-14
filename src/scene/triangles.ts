@@ -5,13 +5,67 @@ export interface TriangleData {
 }
 
 export function makeTriangles(): TriangleData[] {
-  return [
-    // Square (two triangles) in z = 0
-    { v0: [-1, -1, 0], v1: [1, -1, 0], v2: [-1, 1, 0] },
-    { v0: [1, -1, 0], v1: [1, 1, 0], v2: [-1, 1, 0] },
-    // Small triangle behind, shifted right
-    { v0: [0.2, 0.2, -0.6], v1: [0.9, 0.2, -0.6], v2: [0.55, 0.85, -0.6] },
-  ];
+  return makeCubeTriangles();
+}
+
+const CUBE_VERTICES: [number, number, number][] = [
+  [-1, -1, -1],
+  [1, -1, -1],
+  [1, 1, -1],
+  [-1, 1, -1],
+  [-1, -1, 1],
+  [1, -1, 1],
+  [1, 1, 1],
+  [-1, 1, 1],
+];
+
+// Each face is two triangles given by vertex indices.
+const CUBE_FACES: [number, number, number, number][] = [
+  [0, 1, 2, 3], // front
+  [5, 4, 7, 6], // back
+  [4, 0, 3, 7], // left
+  [1, 5, 6, 2], // right
+  [4, 5, 1, 0], // bottom
+  [3, 2, 6, 7], // top
+];
+
+export function makeCubeTriangles(): TriangleData[] {
+  const tris: TriangleData[] = [];
+  for (const face of CUBE_FACES) {
+    const [a, b, c, d] = face;
+    const quadTris: TriangleData[] = [
+      { v0: CUBE_VERTICES[a]!, v1: CUBE_VERTICES[b]!, v2: CUBE_VERTICES[c]! },
+      { v0: CUBE_VERTICES[a]!, v1: CUBE_VERTICES[c]!, v2: CUBE_VERTICES[d]! },
+    ];
+    for (const t of quadTris) {
+      tris.push(ensureOutward(t));
+    }
+  }
+  return tris;
+}
+
+function ensureOutward(t: TriangleData): TriangleData {
+  const [ax, ay, az] = t.v0;
+  const [bx, by, bz] = t.v1;
+  const [cx, cy, cz] = t.v2;
+  const e1x = bx - ax;
+  const e1y = by - ay;
+  const e1z = bz - az;
+  const e2x = cx - ax;
+  const e2y = cy - ay;
+  const e2z = cz - az;
+  const nx = e1y * e2z - e1z * e2y;
+  const ny = e1z * e2x - e1x * e2z;
+  const nz = e1x * e2y - e1y * e2x;
+  const cxv = (ax + bx + cx) / 3;
+  const cyv = (ay + by + cy) / 3;
+  const czv = (az + bz + cz) / 3;
+  const dotNc = nx * cxv + ny * cyv + nz * czv;
+  if (dotNc < 0) {
+    // Swap v1 and v2 to flip the normal.
+    return { v0: t.v0, v1: t.v2, v2: t.v1 };
+  }
+  return t;
 }
 
 export function trianglesStorageData(tris: TriangleData[]): Float32Array {
@@ -35,3 +89,4 @@ export function trianglesStorageData(tris: TriangleData[]): Float32Array {
   }
   return data;
 }
+
