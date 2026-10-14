@@ -1,6 +1,6 @@
 import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
-import { createCamera, cameraUniformData } from '../camera/camera';
+import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 
@@ -38,6 +38,32 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
 
   const camera = createCamera();
+
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  canvas.style.cursor = 'grab';
+  canvas.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+    canvas.style.cursor = 'grabbing';
+  });
+  window.addEventListener('pointermove', (event) => {
+    if (!dragging) {
+      return;
+    }
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    orbitCamera(camera, dx * 0.005, dy * 0.005);
+  });
+  window.addEventListener('pointerup', () => {
+    dragging = false;
+    canvas.style.cursor = 'grab';
+  });
   const uniformBuffer = device.createBuffer({
     size: 96,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
