@@ -38,9 +38,9 @@ export function cameraUniformData(camera: Camera, aspect: number): Float32Array 
   updateCamera(camera, aspect);
   const data = new Float32Array(20); // 16 (mat4) + 4 (eye + pad)
   data.set(camera.invViewProj, 0);
-  data[16] = camera.eye[0];
-  data[17] = camera.eye[1];
-  data[18] = camera.eye[2];
+  data[16] = camera.eye[0] ?? 0;
+  data[17] = camera.eye[1] ?? 0;
+  data[18] = camera.eye[2] ?? 0;
   data[19] = 0; // padding
   return data;
 }
