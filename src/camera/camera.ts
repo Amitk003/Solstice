@@ -4,6 +4,7 @@ export interface Camera {
   eye: Float32Array;
   target: Float32Array;
   up: Float32Array;
+  lightDir: Float32Array;
   fovYRadians: number;
   near: number;
   far: number;
@@ -16,6 +17,7 @@ export function createCamera(): Camera {
     eye: vec3.create(0, 0, 4),
     target: vec3.create(0, 0, 0),
     up: vec3.create(0, 1, 0),
+    lightDir: vec3.create(0.4, 0.8, -0.4),
     fovYRadians: Math.PI / 4,
     near: 0.1,
     far: 100,
@@ -36,11 +38,16 @@ export function updateCamera(camera: Camera, aspect: number): void {
 
 export function cameraUniformData(camera: Camera, aspect: number): Float32Array {
   updateCamera(camera, aspect);
-  const data = new Float32Array(20); // 16 (mat4) + 4 (eye + pad)
+  const light = vec3.normalize(camera.lightDir);
+  const data = new Float32Array(24); // mat4 + eye + pad + light + pad
   data.set(camera.invViewProj, 0);
   data[16] = camera.eye[0] ?? 0;
   data[17] = camera.eye[1] ?? 0;
   data[18] = camera.eye[2] ?? 0;
   data[19] = 0; // padding
+  data[20] = light[0] ?? 0;
+  data[21] = light[1] ?? 0;
+  data[22] = light[2] ?? 0;
+  data[23] = 0; // padding
   return data;
 }
