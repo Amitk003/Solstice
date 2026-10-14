@@ -32,27 +32,30 @@ struct BvhNode {
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba8unorm, write>;
 
-fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> bool {
+fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
   let edge1 = tri.v1 - tri.v0;
   let edge2 = tri.v2 - tri.v0;
   let h = cross(dir, edge2);
   let a = dot(edge1, h);
   if (abs(a) < 0.000001) {
-    return false;
+    return -1.0;
   }
   let f = 1.0 / a;
   let s = origin - tri.v0;
   let u = f * dot(s, h);
   if (u < 0.0 || u > 1.0) {
-    return false;
+    return -1.0;
   }
   let q = cross(s, edge1);
   let v = f * dot(dir, q);
   if (v < 0.0 || u + v > 1.0) {
-    return false;
+    return -1.0;
   }
   let t = f * dot(edge2, q);
-  return t > 0.000001;
+  if (t <= 0.000001) {
+    return -1.0;
+  }
+  return t;
 }
 
 fn intersectAabb(origin: vec3f, dir: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
@@ -83,6 +86,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   stack[0] = 0u;
   sp = 1u;
   var hit = false;
+  var closestT = 1000000.0;
   var hitNormal = vec3f(0.0, 0.0, 1.0);
 
   loop {
@@ -105,13 +109,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         }
         let ti = triIndices[node.first + k];
         let tri = triangles[ti];
-        if (intersectTriangle(camera.eye, dir, tri)) {
+        let t = intersectTriangle(camera.eye, dir, tri);
+        if (t > 0.0 && t < closestT) {
+          closestT = t;
           hit = true;
           hitNormal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
           if (dot(hitNormal, dir) > 0.0) {
             hitNormal = -hitNormal;
           }
-          break;
         }
         k = k + 1u;
       }
@@ -126,9 +131,6 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
     }
 
-    if (hit) {
-      break;
-    }
   }
 
   var color = vec3f(0.02, 0.03, 0.06);
@@ -137,7 +139,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let l = normalize(camera.lightDir);
     let diffuse = max(dot(n, l), 0.0);
     let ambient = 0.15;
-    color = vec3f(0.7) * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+    let faceTint = 0.6 + 0.4 * abs(n);
+    color = faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
   } else {
     // simple sky gradient
     let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
