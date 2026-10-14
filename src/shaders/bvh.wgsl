@@ -109,6 +109,35 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
   return false;
 }
 
+fn skyColor(dir: vec3f) -> vec3f {
+  let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+  return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+}
+
+fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let origin = pos + n * 0.002;
+  var blocked = 0.0;
+  if (isOccluded(origin, normalize(n + tangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n - tangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n + bitangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n - bitangent))) {
+    blocked = blocked + 1.0;
+  }
+  return 1.0 - (blocked / 4.0) * 0.7;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
@@ -182,13 +211,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let ambient = 0.15;
+    let ao = ambientOcclusion(hitPos, n);
+    let skyFill = skyColor(n) * 0.12 * ao;
+    let ambient = 0.1 * ao;
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + skyFill + vec3f(0.02);
   } else {
-    // simple sky gradient in linear HDR
-    let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-    color = 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+    color = skyColor(dir);
   }
   textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
 }
