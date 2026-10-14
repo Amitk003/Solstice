@@ -4,6 +4,10 @@ struct Camera {
   _pad0: f32,
   lightDir: vec3f,
   _pad1: f32,
+  frame: u32,
+  _pad2: u32,
+  _pad3: u32,
+  _pad4: u32,
 }
 
 struct Triangle {
@@ -31,6 +35,7 @@ struct BvhNode {
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
   let edge1 = tri.v1 - tri.v0;
@@ -109,6 +114,13 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
   return false;
 }
 
+fn hash01(pixel: vec2u, salt: u32) -> f32 {
+  var s = pixel.x * 1973u + pixel.y * 9277u + salt * 26699u + 1u;
+  s = (s ^ (s >> 15u)) * 2246822519u;
+  s = s ^ (s >> 13u);
+  return f32(s) / 4294967295.0;
+}
+
 fn skyColor(dir: vec3f) -> vec3f {
   let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
@@ -145,7 +157,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     return;
   }
 
-  let uv = (vec2f(f32(gid.x) + 0.5, f32(gid.y) + 0.5) / vec2f(dims)) * 2.0 - 1.0;
+  let jx = hash01(gid.xy, camera.frame * 2u) - 0.5;
+  let jy = hash01(gid.xy, camera.frame * 2u + 1u) - 0.5;
+  let uv = (vec2f(f32(gid.x) + 0.5 + jx, f32(gid.y) + 0.5 + jy) / vec2f(dims)) * 2.0 - 1.0;
   let ndc = vec4f(uv.x, -uv.y, 1.0, 1.0);
   let world = camera.invViewProj * ndc;
   let dir = normalize(world.xyz / world.w - camera.eye);
@@ -219,5 +233,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   } else {
     color = skyColor(dir);
   }
-  textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
+  let idx = gid.y * dims.x + gid.x;
+  let n = f32(camera.frame + 1u);
+  var blended = vec4f(color, 1.0);
+  if (camera.frame > 0u) {
+    let prev = accum[idx];
+    blended = (prev * (n - 1.0) + vec4f(color, 1.0)) / n;
+  }
+  accum[idx] = blended;
+  textureStore(outputTexture, vec2i(gid.xy), blended);
 }

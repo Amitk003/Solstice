@@ -59,15 +59,17 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     lastX = event.clientX;
     lastY = event.clientY;
     orbitCamera(camera, dx * 0.005, dy * 0.005);
+    frameCount = 0;
   });
   window.addEventListener('pointerup', () => {
     dragging = false;
     canvas.style.cursor = 'grab';
   });
   const uniformBuffer = device.createBuffer({
-    size: 96,
+    size: 112,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+  let frameCount = 0;
 
   const tris = makeTriangles();
   const triData = trianglesStorageData(tris);
@@ -108,6 +110,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
 
   let outputTexture: GPUTexture | null = null;
+  let accumBuffer: GPUBuffer | null = null;
   let computeBindGroup: GPUBindGroup | null = null;
   let renderBindGroup: GPUBindGroup | null = null;
 
@@ -115,12 +118,16 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
     canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    frameCount = 0;
     recreateTexture();
   }
 
   function recreateTexture() {
     if (outputTexture) {
       outputTexture.destroy();
+    }
+    if (accumBuffer) {
+      accumBuffer.destroy();
     }
 
     outputTexture = device.createTexture({
@@ -132,6 +139,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         GPUTextureUsage.COPY_DST,
     });
 
+    accumBuffer = device.createBuffer({
+      size: canvas.width * canvas.height * 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+
     computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
@@ -140,6 +152,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 2, resource: { buffer: bvhNodesBuffer } },
         { binding: 3, resource: { buffer: triIndicesBuffer } },
         { binding: 4, resource: outputTexture.createView() },
+        { binding: 5, resource: { buffer: accumBuffer } },
       ],
     });
 
@@ -159,14 +172,14 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let raf = 0;
 
   function frame() {
-    if (!running || !outputTexture || !computeBindGroup || !renderBindGroup) {
+    if (!running || !outputTexture || !accumBuffer || !computeBindGroup || !renderBindGroup) {
       return;
     }
 
     const encoder = device.createCommandEncoder();
 
     const aspect = canvas.width / canvas.height;
-    const uniformData = cameraUniformData(camera, aspect);
+    const uniformData = cameraUniformData(camera, aspect, frameCount);
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
     const computePass = encoder.beginComputePass();
@@ -193,6 +206,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     pass.end();
 
     device.queue.submit([encoder.finish()]);
+    frameCount = Math.min(frameCount + 1, 1024);
     raf = requestAnimationFrame(frame);
   }
 
