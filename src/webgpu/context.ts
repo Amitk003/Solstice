@@ -125,7 +125,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
     outputTexture = device.createTexture({
       size: [canvas.width, canvas.height],
-      format: 'rgba8unorm',
+      format: 'rgba16float',
       usage:
         GPUTextureUsage.STORAGE_BINDING |
         GPUTextureUsage.TEXTURE_BINDING |

@@ -30,7 +30,7 @@ struct BvhNode {
 @group(0) @binding(1) var<storage, read> triangles: array<Triangle>;
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
-@group(0) @binding(4) var outputTexture: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
   let edge1 = tri.v1 - tri.v0;
@@ -184,11 +184,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     }
     let ambient = 0.15;
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
   } else {
-    // simple sky gradient
+    // simple sky gradient in linear HDR
     let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-    color = mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+    color = 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
   }
   textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
 }
