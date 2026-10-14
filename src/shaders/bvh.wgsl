@@ -1,7 +1,9 @@
 struct Camera {
   invViewProj: mat4x4f,
   eye: vec3f,
-  _pad: f32,
+  _pad0: f32,
+  lightDir: vec3f,
+  _pad1: f32,
 }
 
 struct Triangle {
@@ -81,6 +83,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   stack[0] = 0u;
   sp = 1u;
   var hit = false;
+  var hitNormal = vec3f(0.0, 0.0, 1.0);
 
   loop {
     if (sp == 0u) {
@@ -104,6 +107,10 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         let tri = triangles[ti];
         if (intersectTriangle(camera.eye, dir, tri)) {
           hit = true;
+          hitNormal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+          if (dot(hitNormal, dir) > 0.0) {
+            hitNormal = -hitNormal;
+          }
           break;
         }
         k = k + 1u;
@@ -124,9 +131,17 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     }
   }
 
-  var color = vec3f(0.05, 0.08, 0.12);
+  var color = vec3f(0.02, 0.03, 0.06);
   if (hit) {
-    color = vec3f(0.3, 0.8, 0.5);
+    let n = normalize(hitNormal);
+    let l = normalize(camera.lightDir);
+    let diffuse = max(dot(n, l), 0.0);
+    let ambient = 0.15;
+    color = vec3f(0.7) * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+  } else {
+    // simple sky gradient
+    let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+    color = mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
   }
   textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
 }
