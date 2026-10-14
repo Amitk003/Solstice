@@ -211,9 +211,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let ambient = 0.15;
+    let ao = ambientOcclusion(hitPos, n);
+    let skyFill = skyColor(n) * 0.12 * ao;
+    let ambient = 0.1 * ao;
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + skyFill + vec3f(0.02);
   } else {
     color = skyColor(dir);
   }
