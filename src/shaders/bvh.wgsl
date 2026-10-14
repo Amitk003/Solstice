@@ -114,6 +114,30 @@ fn skyColor(dir: vec3f) -> vec3f {
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
 }
 
+fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let origin = pos + n * 0.002;
+  var blocked = 0.0;
+  if (isOccluded(origin, normalize(n + tangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n - tangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n + bitangent))) {
+    blocked = blocked + 1.0;
+  }
+  if (isOccluded(origin, normalize(n - bitangent))) {
+    blocked = blocked + 1.0;
+  }
+  return 1.0 - (blocked / 4.0) * 0.7;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
