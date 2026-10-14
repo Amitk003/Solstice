@@ -109,6 +109,11 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
   return false;
 }
 
+fn skyColor(dir: vec3f) -> vec3f {
+  let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+  return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
@@ -186,9 +191,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let faceTint = 0.6 + 0.4 * abs(n);
     color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
   } else {
-    // simple sky gradient in linear HDR
-    let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-    color = 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+    color = skyColor(dir);
   }
   textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
 }
