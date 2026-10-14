@@ -1,0 +1,31 @@
+# Git ignores
+# Memory folder is local only. Never push it.
+memory/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+npm-debug.log*
+
+# Build output
+dist/
+build/
+.vite/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (local)
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
