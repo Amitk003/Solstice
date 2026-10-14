@@ -139,7 +139,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let l = normalize(camera.lightDir);
     let diffuse = max(dot(n, l), 0.0);
     let ambient = 0.15;
-    color = vec3f(0.7) * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
+    let faceTint = 0.6 + 0.4 * abs(n);
+    color = faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
   } else {
     // simple sky gradient
     let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
