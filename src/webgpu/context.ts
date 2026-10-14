@@ -39,7 +39,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   const camera = createCamera();
   const uniformBuffer = device.createBuffer({
-    size: 80,
+    size: 96,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
