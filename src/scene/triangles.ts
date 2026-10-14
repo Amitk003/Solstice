@@ -12,8 +12,8 @@ export function makeFloorTriangles(): TriangleData[] {
   const y = -1.5;
   const s = 8;
   return [
-    { v0: [-s, y, -s], v1: [s, y, -s], v2: [-s, y, s] },
-    { v0: [s, y, -s], v1: [s, y, s], v2: [-s, y, s] },
+    { v0: [-s, y, -s], v1: [-s, y, s], v2: [s, y, -s] },
+    { v0: [s, y, -s], v1: [-s, y, s], v2: [s, y, s] },
   ];
 }
 
