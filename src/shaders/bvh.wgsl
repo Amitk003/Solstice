@@ -30,7 +30,7 @@ struct BvhNode {
 @group(0) @binding(1) var<storage, read> triangles: array<Triangle>;
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
-@group(0) @binding(4) var outputTexture: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
   let edge1 = tri.v1 - tri.v0;
