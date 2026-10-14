@@ -1,6 +1,7 @@
-import raygenSource from '../shaders/raygen.wgsl?raw';
+import traceSource from '../shaders/trace.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import { createCamera, cameraUniformData } from '../camera/camera';
+import { triangleUniformData } from '../scene/triangle';
 
 export interface RenderContext {
   start: () => void;
@@ -27,12 +28,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   const format = navigator.gpu.getPreferredCanvasFormat();
   gpuCanvasContext.configure({ device, format, alphaMode: 'opaque' });
 
-  const shaderModuleRaygen = device.createShaderModule({ code: raygenSource });
+  const shaderModuleTrace = device.createShaderModule({ code: traceSource });
   const shaderModuleBlit = device.createShaderModule({ code: blitSource });
 
   const computePipeline = device.createComputePipeline({
     layout: 'auto',
-    compute: { module: shaderModuleRaygen, entryPoint: 'main' },
+    compute: { module: shaderModuleTrace, entryPoint: 'main' },
   });
 
   const camera = createCamera();
@@ -40,6 +41,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     size: 80,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+  const triangleBuffer = device.createBuffer({
+    size: 48,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(triangleBuffer, 0, triangleUniformData());
 
   const renderPipeline = device.createRenderPipeline({
     layout: 'auto',
@@ -86,7 +92,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: uniformBuffer } },
-        { binding: 1, resource: outputTexture.createView() },
+        { binding: 1, resource: { buffer: triangleBuffer } },
+        { binding: 2, resource: outputTexture.createView() },
       ],
     });
 
