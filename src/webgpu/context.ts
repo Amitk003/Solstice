@@ -1,7 +1,7 @@
-import traceSource from '../shaders/trace.wgsl?raw';
+import traceSource from '../shaders/trace-list.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import { createCamera, cameraUniformData } from '../camera/camera';
-import { triangleUniformData } from '../scene/triangle';
+import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 
 export interface RenderContext {
   start: () => void;
@@ -41,11 +41,21 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     size: 80,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const triangleBuffer = device.createBuffer({
-    size: 48,
+
+  const tris = makeTriangles();
+  const triData = trianglesStorageData(tris);
+  const trianglesBuffer = device.createBuffer({
+    size: triData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(trianglesBuffer, 0, triData);
+
+  const paramsBuffer = device.createBuffer({
+    size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(triangleBuffer, 0, triangleUniformData());
+  const params = new Uint32Array([tris.length, 0, 0, 0]);
+  device.queue.writeBuffer(paramsBuffer, 0, params);
 
   const renderPipeline = device.createRenderPipeline({
     layout: 'auto',
@@ -92,8 +102,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: uniformBuffer } },
-        { binding: 1, resource: { buffer: triangleBuffer } },
-        { binding: 2, resource: outputTexture.createView() },
+        { binding: 1, resource: { buffer: trianglesBuffer } },
+        { binding: 2, resource: { buffer: paramsBuffer } },
+        { binding: 3, resource: outputTexture.createView() },
       ],
     });
 
