@@ -177,7 +177,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   if (hit) {
     let n = normalize(hitNormal);
     let l = normalize(camera.lightDir);
-    let diffuse = max(dot(n, l), 0.0);
+    let hitPos = camera.eye + dir * closestT + n * 0.001;
+    var diffuse = max(dot(n, l), 0.0);
+    if (diffuse > 0.0 && isOccluded(hitPos, l)) {
+      diffuse = 0.0;
+    }
     let ambient = 0.15;
     let faceTint = 0.6 + 0.4 * abs(n);
     color = faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
