@@ -1,5 +1,6 @@
-import gradientSource from '../shaders/gradient.wgsl?raw';
+import raygenSource from '../shaders/raygen.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
+import { createCamera, cameraUniformData } from '../camera/camera';
 
 export interface RenderContext {
   start: () => void;
@@ -26,12 +27,18 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   const format = navigator.gpu.getPreferredCanvasFormat();
   gpuCanvasContext.configure({ device, format, alphaMode: 'opaque' });
 
-  const shaderModuleGradient = device.createShaderModule({ code: gradientSource });
+  const shaderModuleRaygen = device.createShaderModule({ code: raygenSource });
   const shaderModuleBlit = device.createShaderModule({ code: blitSource });
 
   const computePipeline = device.createComputePipeline({
     layout: 'auto',
-    compute: { module: shaderModuleGradient, entryPoint: 'main' },
+    compute: { module: shaderModuleRaygen, entryPoint: 'main' },
+  });
+
+  const camera = createCamera();
+  const uniformBuffer = device.createBuffer({
+    size: 80,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
   const renderPipeline = device.createRenderPipeline({
@@ -77,7 +84,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
     computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
-      entries: [{ binding: 0, resource: outputTexture.createView() }],
+      entries: [
+        { binding: 0, resource: { buffer: uniformBuffer } },
+        { binding: 1, resource: outputTexture.createView() },
+      ],
     });
 
     renderBindGroup = device.createBindGroup({
@@ -101,6 +111,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     }
 
     const encoder = device.createCommandEncoder();
+
+    const aspect = canvas.width / canvas.height;
+    const uniformData = cameraUniformData(camera, aspect);
+    device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
     const computePass = encoder.beginComputePass();
     computePass.setPipeline(computePipeline);
