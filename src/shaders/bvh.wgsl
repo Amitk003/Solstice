@@ -35,6 +35,7 @@ struct BvhNode {
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
   let edge1 = tri.v1 - tri.v0;
@@ -232,5 +233,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   } else {
     color = skyColor(dir);
   }
-  textureStore(outputTexture, vec2i(gid.xy), vec4f(color, 1.0));
+  let idx = gid.y * dims.x + gid.x;
+  let n = f32(camera.frame + 1u);
+  var blended = vec4f(color, 1.0);
+  if (camera.frame > 0u) {
+    let prev = accum[idx];
+    blended = (prev * (n - 1.0) + vec4f(color, 1.0)) / n;
+  }
+  accum[idx] = blended;
+  textureStore(outputTexture, vec2i(gid.xy), blended);
 }
