@@ -17,7 +17,19 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
 
+fn aces(x: vec3f) -> vec3f {
+  let a = 2.51;
+  let b = 0.03;
+  let c = 2.43;
+  let d = 0.59;
+  let e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
+}
+
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4f {
-  return textureSample(tex, samp, in.uv);
+  let hdr = textureSample(tex, samp, in.uv).rgb;
+  let mapped = aces(hdr * 1.2);
+  let gamma = pow(mapped, vec3f(1.0 / 2.2));
+  return vec4f(gamma, 1.0);
 }
