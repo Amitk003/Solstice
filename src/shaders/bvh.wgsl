@@ -69,6 +69,46 @@ fn intersectAabb(origin: vec3f, dir: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
   return tmax >= max(tmin, 0.0);
 }
 
+fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = 0u;
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        if (intersectTriangle(origin, dir, triangles[ti]) > 0.0) {
+          return true;
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return false;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
