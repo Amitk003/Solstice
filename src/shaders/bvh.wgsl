@@ -69,6 +69,46 @@ fn intersectAabb(origin: vec3f, dir: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
   return tmax >= max(tmin, 0.0);
 }
 
+fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = 0u;
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        if (intersectTriangle(origin, dir, triangles[ti]) > 0.0) {
+          return true;
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return false;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
@@ -137,7 +177,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   if (hit) {
     let n = normalize(hitNormal);
     let l = normalize(camera.lightDir);
-    let diffuse = max(dot(n, l), 0.0);
+    let hitPos = camera.eye + dir * closestT + n * 0.001;
+    var diffuse = max(dot(n, l), 0.0);
+    if (diffuse > 0.0 && isOccluded(hitPos, l)) {
+      diffuse = 0.0;
+    }
     let ambient = 0.15;
     let faceTint = 0.6 + 0.4 * abs(n);
     color = faceTint * (ambient + (1.0 - ambient) * diffuse) + vec3f(0.05);
