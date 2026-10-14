@@ -54,8 +54,8 @@ export function buildBvh(tris: TriangleData[]): BuiltBvh {
     const max = [-Infinity, -Infinity, -Infinity] as [number, number, number];
     for (const i of indices) {
       for (let c = 0; c < 3; c++) {
-        min[c] = Math.min(min[c], bounds[i].min[c]);
-        max[c] = Math.max(max[c], bounds[i].max[c]);
+        min[c] = Math.min(min[c]!, bounds[i]!.min[c]!);
+        max[c] = Math.max(max[c]!, bounds[i]!.max[c]!);
       }
     }
     return { min, max };
@@ -83,7 +83,7 @@ export function buildBvh(tris: TriangleData[]): BuiltBvh {
     });
 
     const { min, max } = nodeBounds(indices);
-    const node = nodes[nodeIndex];
+    const node = nodes[nodeIndex] as BvhNodeData;
     node.minX = min[0];
     node.minY = min[1];
     node.minZ = min[2];
@@ -101,11 +101,11 @@ export function buildBvh(tris: TriangleData[]): BuiltBvh {
     }
 
     const axis = depth % 3;
-    const sorted = [...indices].sort((a, b) => bounds[a].center[axis] - bounds[b].center[axis]);
+    const sorted = [...indices].sort((a, b) => bounds[a]!.center[axis]! - bounds[b]!.center[axis]!);
 
     // Guard against a bad split.
-    const firstCenter = bounds[sorted[0]].center[axis];
-    const lastCenter = bounds[sorted[sorted.length - 1]].center[axis];
+    const firstCenter = bounds[sorted[0]!]!.center[axis]!;
+    const lastCenter = bounds[sorted[sorted.length - 1]!]!.center[axis]!;
     if (firstCenter === lastCenter) {
       node.first = triangleIndices.length;
       node.count = sorted.length;
@@ -170,9 +170,3 @@ export function nodesToBuffer(nodes: BvhNodeData[]): ArrayBuffer {
 
   return buffer;
 }
-```<|end|><|start|>write to=assistant<|channel|>analysis<|message|>Wait Uint32Array indexing: buffer byte offset. `new Uint32Array(buffer)` spans whole buffer, index is uint32 element. Node spacing 48 bytes = 12 uint32s. intBase = i*12+8 = node offset 32 bytes + 8 floats? Let's recalc: 8 floats = 32 bytes = 8 uint32 slots. Then left/right = slots 8,9. first/count = slots 10,11. So uints[base+10], uints[base+11]. That matches. But ints view starts at slot0 too aligned. Fine. Since the Int32 and Uint32 both alias same buffer, writing through separate typed arrays okay.
-
-Potential issue typed arrays alignment: Int32Array(buffer) starts at 0, fine.
-
-Now commit.<|end|><|start|> assistant to=shell<|channel|>analysis <|constrain|>xml<|message|><rfl:parameter name="command">
-cd "C:\Users\amitk\Documents\Projects\something"; git add src/bvh/bvh.ts; git commit -m "build a simple cpu side bvh"
