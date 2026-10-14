@@ -10,6 +10,9 @@ export interface Camera {
   far: number;
   aspect: number;
   invViewProj: Float32Array;
+  radius: number;
+  azimuth: number;
+  elevation: number;
 }
 
 export function createCamera(): Camera {
@@ -23,6 +26,9 @@ export function createCamera(): Camera {
     far: 100,
     aspect: 1,
     invViewProj: mat4.create(),
+    radius: 4,
+    azimuth: 0.6,
+    elevation: 0.5,
   };
   updateCamera(camera, 1);
   return camera;
@@ -30,10 +36,23 @@ export function createCamera(): Camera {
 
 export function updateCamera(camera: Camera, aspect: number): void {
   camera.aspect = aspect;
+  const cosElev = Math.cos(camera.elevation);
+  const tx = camera.target[0] ?? 0;
+  const ty = camera.target[1] ?? 0;
+  const tz = camera.target[2] ?? 0;
+  camera.eye[0] = tx + camera.radius * cosElev * Math.sin(camera.azimuth);
+  camera.eye[1] = ty + camera.radius * Math.sin(camera.elevation);
+  camera.eye[2] = tz + camera.radius * cosElev * Math.cos(camera.azimuth);
+
   const view = mat4.lookAt(camera.eye, camera.target, camera.up);
   const proj = mat4.perspective(camera.fovYRadians, aspect, camera.near, camera.far);
   const viewProj = mat4.multiply(proj, view);
   mat4.inverse(viewProj, camera.invViewProj);
+}
+
+export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation: number): void {
+  camera.azimuth += deltaAzimuth;
+  camera.elevation = Math.max(-1.4, Math.min(1.4, camera.elevation + deltaElevation));
 }
 
 export function cameraUniformData(camera: Camera, aspect: number): Float32Array {
