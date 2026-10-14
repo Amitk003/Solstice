@@ -1,7 +1,8 @@
-import traceSource from '../shaders/trace-list.wgsl?raw';
+import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import { createCamera, cameraUniformData } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
+import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 
 export interface RenderContext {
   start: () => void;
@@ -50,12 +51,19 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   device.queue.writeBuffer(trianglesBuffer, 0, triData);
 
-  const paramsBuffer = device.createBuffer({
-    size: 16,
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  const bvh = buildBvh(tris);
+  const nodesBuffer = nodesToBuffer(bvh.nodes);
+  const bvhNodesBuffer = device.createBuffer({
+    size: nodesBuffer.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  const params = new Uint32Array([tris.length, 0, 0, 0]);
-  device.queue.writeBuffer(paramsBuffer, 0, params);
+  device.queue.writeBuffer(bvhNodesBuffer, 0, nodesBuffer);
+
+  const triIndicesBuffer = device.createBuffer({
+    size: bvh.triangleIndices.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
 
   const renderPipeline = device.createRenderPipeline({
     layout: 'auto',
@@ -103,8 +111,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       entries: [
         { binding: 0, resource: { buffer: uniformBuffer } },
         { binding: 1, resource: { buffer: trianglesBuffer } },
-        { binding: 2, resource: { buffer: paramsBuffer } },
-        { binding: 3, resource: outputTexture.createView() },
+        { binding: 2, resource: { buffer: bvhNodesBuffer } },
+        { binding: 3, resource: { buffer: triIndicesBuffer } },
+        { binding: 4, resource: outputTexture.createView() },
       ],
     });
 
