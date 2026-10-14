@@ -86,6 +86,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   stack[0] = 0u;
   sp = 1u;
   var hit = false;
+  var closestT = 1000000.0;
   var hitNormal = vec3f(0.0, 0.0, 1.0);
 
   loop {
@@ -108,13 +109,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         }
         let ti = triIndices[node.first + k];
         let tri = triangles[ti];
-        if (intersectTriangle(camera.eye, dir, tri)) {
+        let t = intersectTriangle(camera.eye, dir, tri);
+        if (t > 0.0 && t < closestT) {
+          closestT = t;
           hit = true;
           hitNormal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
           if (dot(hitNormal, dir) > 0.0) {
             hitNormal = -hitNormal;
           }
-          break;
         }
         k = k + 1u;
       }
@@ -129,9 +131,6 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
     }
 
-    if (hit) {
-      break;
-    }
   }
 
   var color = vec3f(0.02, 0.03, 0.06);
