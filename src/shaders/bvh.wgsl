@@ -13,10 +13,16 @@ struct Camera {
 struct Triangle {
   v0: vec3f,
   _pad0: f32,
-  v1: vec3f,
+  n0: vec3f,
   _pad1: f32,
-  v2: vec3f,
+  v1: vec3f,
   _pad2: f32,
+  n1: vec3f,
+  _pad3: f32,
+  v2: vec3f,
+  _pad4: f32,
+  n2: vec3f,
+  _pad5: f32,
 }
 
 struct BvhNode {
@@ -37,30 +43,30 @@ struct BvhNode {
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
 
-fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> f32 {
+fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
   let edge2 = tri.v2 - tri.v0;
   let h = cross(dir, edge2);
   let a = dot(edge1, h);
   if (abs(a) < 0.000001) {
-    return -1.0;
+    return vec3f(-1.0);
   }
   let f = 1.0 / a;
   let s = origin - tri.v0;
   let u = f * dot(s, h);
   if (u < 0.0 || u > 1.0) {
-    return -1.0;
+    return vec3f(-1.0);
   }
   let q = cross(s, edge1);
   let v = f * dot(dir, q);
   if (v < 0.0 || u + v > 1.0) {
-    return -1.0;
+    return vec3f(-1.0);
   }
   let t = f * dot(edge2, q);
   if (t <= 0.000001) {
-    return -1.0;
+    return vec3f(-1.0);
   }
-  return t;
+  return vec3f(t, u, v);
 }
 
 fn intersectAabb(origin: vec3f, dir: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
@@ -95,7 +101,7 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
           break;
         }
         let ti = triIndices[node.first + k];
-        if (intersectTriangle(origin, dir, triangles[ti]) > 0.0) {
+        if (intersectTriangle(origin, dir, triangles[ti]).x > 0.0) {
           return true;
         }
         k = k + 1u;
@@ -119,6 +125,7 @@ struct Hit {
   t: f32,
   normal: vec3f,
   tri: u32,
+  uv: vec2f,
 }
 
 fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
@@ -130,6 +137,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
   result.t = 1000000.0;
   result.normal = vec3f(0.0, 0.0, 1.0);
   result.tri = 0u;
+  result.uv = vec2f(0.0);
   loop {
     if (sp == 0u) {
       break;
@@ -148,12 +156,14 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
         }
         let ti = triIndices[node.first + k];
         let tri = triangles[ti];
-        let t = intersectTriangle(origin, dir, tri);
-        if (t > 0.0 && t < result.t) {
-          result.t = t;
+        let tuv = intersectTriangle(origin, dir, tri);
+        if (tuv.x > 0.0 && tuv.x < result.t) {
+          result.t = tuv.x;
           result.found = true;
           result.tri = ti;
-          result.normal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+          result.uv = tuv.yz;
+          let w = 1.0 - tuv.y - tuv.z;
+          result.normal = normalize(tri.n0 * w + tri.n1 * tuv.y + tri.n2 * tuv.z);
           if (dot(result.normal, dir) > 0.0) {
             result.normal = -result.normal;
           }
