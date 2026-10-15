@@ -278,16 +278,20 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    // Cube is tris 0 to 11, floor is 12 to 13, sphere is 14 and up.
+    // Materials: 0 diffuse, 1 mirror, 2 glass, 3 emissive.
     var albedo = 0.6 + 0.4 * abs(n);
-    if ((camera.flags & 1u) != 0u && primary.tri >= 14u) {
+    if (primary.material == 3u) {
+      color = vec3f(4.0, 3.7, 3.2);
+    } else if ((camera.flags & 1u) != 0u && primary.material == 2u) {
       let cosT = max(dot(-dir, n), 0.0);
       let fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
       let rdir = reflect(dir, n);
       let rorigin = hitPos + n * 0.001;
       let rhit = traceClosest(rorigin, rdir);
       var refl = skyColor(rdir);
-      if (rhit.found) {
+      if (rhit.found && rhit.material == 3u) {
+        refl = vec3f(4.0, 3.7, 3.2);
+      } else if (rhit.found) {
         let rn = normalize(rhit.normal);
         var rdiff = max(dot(rn, l), 0.0);
         let rpos = rorigin + rdir * rhit.t + rn * 0.001;
@@ -307,7 +311,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
           if (dot(tout, tout) > 0.000001) {
             let outOrigin = inOrigin + tin * exit.t + tout * 0.002;
             let thit = traceClosest(outOrigin, tout);
-            if (thit.found) {
+            if (thit.found && thit.material == 3u) {
+              trans = vec3f(4.0, 3.7, 3.2);
+            } else if (thit.found) {
               let tn = normalize(thit.normal);
               var tdiff = max(dot(tn, l), 0.0);
               let tpos = outOrigin + tout * thit.t + tn * 0.001;
@@ -328,14 +334,17 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
       color = mix(trans, refl, fres) + vec3f(0.02);
     }
-    if ((camera.flags & 1u) != 0u && primary.tri < 14u) {
+    if ((camera.flags & 1u) != 0u && primary.material < 2u) {
       let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
       let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
       let bounceDir = cosineHemisphere(n, u1, u2);
       let bounceOrigin = hitPos + n * 0.001;
       let bounce = traceClosest(bounceOrigin, bounceDir);
       var indirect = skyColor(bounceDir) * 0.25;
-      if (bounce.found) {
+      if (bounce.found && bounce.material == 3u) {
+        indirect = vec3f(4.0, 3.7, 3.2);
+      }
+      if (bounce.found && bounce.material != 3u) {
         let bn = normalize(bounce.normal);
         var bouncediff = max(dot(bn, l), 0.0);
         let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
@@ -345,12 +354,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
       }
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + vec3f(0.02);
-      if (primary.tri < 12u) {
+      if (primary.material == 1u) {
         let rdir = reflect(dir, n);
         let rorigin = hitPos + n * 0.001;
         let rhit = traceClosest(rorigin, rdir);
         var refl = skyColor(rdir);
-        if (rhit.found) {
+        if (rhit.found && rhit.material == 3u) {
+          refl = vec3f(4.0, 3.7, 3.2);
+        } else if (rhit.found) {
           let rn = normalize(rhit.normal);
           var rdiff = max(dot(rn, l), 0.0);
           let rpos = rorigin + rdir * rhit.t + rn * 0.001;
@@ -363,7 +374,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         let fresnel = 0.3 + 0.7 * pow(1.0 - cosTheta, 5.0);
         color = mix(color, refl * vec3f(0.9, 0.95, 1.0) + color * 0.15, fresnel);
       }
-    } else {
+    } else if (primary.material != 3u) {
       let skyFill = skyColor(n) * 0.12;
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * albedo + vec3f(0.02);
     }
