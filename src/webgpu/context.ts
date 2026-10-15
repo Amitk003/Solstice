@@ -14,6 +14,7 @@ export interface RenderContext {
   stop: () => void;
   getStats: () => RenderStats;
   setBounceEnabled: (enabled: boolean) => void;
+  setResolutionScale: (scale: number) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -78,6 +79,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   let frameCount = 0;
   let bounceEnabled = true;
+  let resScale = 1;
   let fps = 0;
   let lastTime = 0;
 
@@ -126,8 +128,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-    canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+    canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr * resScale));
+    canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr * resScale));
     frameCount = 0;
     recreateTexture();
   }
@@ -249,6 +251,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
       frameCount = 0;
+    },
+    setResolutionScale: (scale: number) => {
+      const clamped = Math.max(0.25, Math.min(1, scale));
+      if (clamped !== resScale) {
+        resScale = clamped;
+        resize();
+      }
     },
   };
 }
