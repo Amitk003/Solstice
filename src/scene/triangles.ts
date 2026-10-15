@@ -1,3 +1,10 @@
+export enum TriMaterial {
+  Diffuse = 0,
+  Mirror = 1,
+  Glass = 2,
+  Emissive = 3,
+}
+
 export interface TriangleData {
   v0: [number, number, number];
   v1: [number, number, number];
@@ -5,6 +12,7 @@ export interface TriangleData {
   n0: [number, number, number];
   n1: [number, number, number];
   n2: [number, number, number];
+  m: number;
 }
 
 function faceNormal(
@@ -29,16 +37,22 @@ function withFaceNormals(
   v0: [number, number, number],
   v1: [number, number, number],
   v2: [number, number, number],
+  m: number = TriMaterial.Diffuse,
 ): TriangleData {
   const n = faceNormal(v0, v1, v2);
-  return { v0, v1, v2, n0: n, n1: n, n2: n };
+  return { v0, v1, v2, n0: n, n1: n, n2: n, m };
 }
 
 export const CUBE_TRI_COUNT = 12;
 export const FLOOR_TRI_COUNT = 2;
 
 export function makeTriangles(): TriangleData[] {
-  return [...makeCubeTriangles(), ...makeFloorTriangles(), ...makeSphereTriangles()];
+  return [
+    ...makeCubeTriangles(),
+    ...makeFloorTriangles(),
+    ...makeSphereTriangles(),
+    ...makeSphereTriangles([0.4, 2.3, 1.6], 0.22, 10, 8, TriMaterial.Emissive),
+  ];
 }
 
 export function makeFloorTriangles(): TriangleData[] {
@@ -76,8 +90,8 @@ export function makeCubeTriangles(): TriangleData[] {
   for (const face of CUBE_FACES) {
     const [a, b, c, d] = face;
     const quadTris: TriangleData[] = [
-      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[b]!, CUBE_VERTICES[c]!),
-      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[c]!, CUBE_VERTICES[d]!),
+      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[b]!, CUBE_VERTICES[c]!, TriMaterial.Mirror),
+      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[c]!, CUBE_VERTICES[d]!, TriMaterial.Mirror),
     ];
     for (const t of quadTris) {
       tris.push(ensureOutward(t));
@@ -91,6 +105,7 @@ export function makeSphereTriangles(
   radius = 0.8,
   latSegs = 20,
   lonSegs = 14,
+  material: number = TriMaterial.Glass,
 ): TriangleData[] {
   const point = (lat: number, lon: number): [number, number, number] => {
     const theta = (lat / latSegs) * Math.PI;
@@ -113,8 +128,24 @@ export function makeSphereTriangles(
       const b = point(lat + 1, lon);
       const c = point(lat, lon + 1);
       const d = point(lat + 1, lon + 1);
-      const t0: TriangleData = { v0: a, v1: b, v2: d, n0: smooth(a), n1: smooth(b), n2: smooth(d) };
-      const t1: TriangleData = { v0: a, v1: d, v2: c, n0: smooth(a), n1: smooth(d), n2: smooth(c) };
+      const t0: TriangleData = {
+        v0: a,
+        v1: b,
+        v2: d,
+        n0: smooth(a),
+        n1: smooth(b),
+        n2: smooth(d),
+        m: material,
+      };
+      const t1: TriangleData = {
+        v0: a,
+        v1: d,
+        v2: c,
+        n0: smooth(a),
+        n1: smooth(d),
+        n2: smooth(c),
+        m: material,
+      };
       tris.push(ensureOutward(t0, center));
       tris.push(ensureOutward(t1, center));
     }
@@ -141,7 +172,7 @@ function ensureOutward(t: TriangleData, center: [number, number, number] = [0, 0
   const dotNc = nx * cxv + ny * cyv + nz * czv;
   if (dotNc < 0) {
     // Swap v1 and v2 to flip the winding. Normals follow the swap.
-    return { v0: t.v0, v1: t.v2, v2: t.v1, n0: t.n0, n1: t.n2, n2: t.n1 };
+    return { v0: t.v0, v1: t.v2, v2: t.v1, n0: t.n0, n1: t.n2, n2: t.n1, m: t.m };
   }
   return t;
 }
@@ -149,6 +180,7 @@ function ensureOutward(t: TriangleData, center: [number, number, number] = [0, 0
 export function trianglesStorageData(tris: TriangleData[]): Float32Array {
   const floats = tris.length * 24;
   const data = new Float32Array(floats);
+  const uints = new Uint32Array(data.buffer);
   let o = 0;
   for (const t of tris) {
     data[o + 0] = t.v0[0];
@@ -175,6 +207,7 @@ export function trianglesStorageData(tris: TriangleData[]): Float32Array {
     data[o + 21] = t.n2[1];
     data[o + 22] = t.n2[2];
     data[o + 23] = 0;
+    uints[o + 23] = t.m;
     o += 24;
   }
   return data;
