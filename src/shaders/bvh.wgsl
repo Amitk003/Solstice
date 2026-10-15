@@ -248,11 +248,23 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let ao = ambientOcclusion(hitPos, n);
-    let skyFill = skyColor(n) * 0.12 * ao;
-    let ambient = 0.1 * ao;
+    let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
+    let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
+    let bounceDir = cosineHemisphere(n, u1, u2);
+    let bounceOrigin = hitPos + n * 0.001;
+    let bounce = traceClosest(bounceOrigin, bounceDir);
+    var indirect = skyColor(bounceDir) * 0.25;
+    if (bounce.found) {
+      let bn = normalize(bounce.normal);
+      var bouncediff = max(dot(bn, l), 0.0);
+      let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
+      if (bouncediff > 0.0 && isOccluded(bouncePos, l)) {
+        bouncediff = 0.0;
+      }
+      indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
+    }
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + skyFill + vec3f(0.02);
+    color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
   } else {
     color = skyColor(dir);
   }
