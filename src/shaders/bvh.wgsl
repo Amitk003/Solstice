@@ -80,7 +80,7 @@ fn intersectAabb(origin: vec3f, dir: vec3f, bmin: vec3f, bmax: vec3f) -> bool {
   return tmax >= max(tmin, 0.0);
 }
 
-fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
+fn isOccluded(origin: vec3f, dir: vec3f, maxT: f32) -> bool {
   var stack: array<u32, 64>;
   var sp = 1u;
   stack[0] = 0u;
@@ -101,7 +101,8 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
           break;
         }
         let ti = triIndices[node.first + k];
-        if (intersectTriangle(origin, dir, triangles[ti]).x > 0.0) {
+        let shadowT = intersectTriangle(origin, dir, triangles[ti]).x;
+        if (shadowT > 0.0 && shadowT < maxT) {
           return true;
         }
         k = k + 1u;
@@ -199,6 +200,36 @@ fn skyColor(dir: vec3f) -> vec3f {
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
 }
 
+// Must match the emissive sphere in triangles.ts.
+const LAMP_POS = vec3f(0.4, 2.3, 1.6);
+const LAMP_R = 0.22;
+const LAMP_COLOR = vec3f(4.0, 3.7, 3.2);
+
+fn lampSample(hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
+  let z = 1.0 - 2.0 * u1;
+  let r = sqrt(max(0.0, 1.0 - z * z));
+  let phi = 6.2831853 * u2;
+  let onSphere = vec3f(r * cos(phi), r * sin(phi), z);
+  let lampPoint = LAMP_POS + LAMP_R * onSphere;
+  let toLamp = lampPoint - hitPos;
+  let dist2 = dot(toLamp, toLamp);
+  let dist = sqrt(dist2);
+  let ln = toLamp / dist;
+  let cosS = max(dot(n, ln), 0.0);
+  if (cosS <= 0.0) {
+    return vec3f(0.0);
+  }
+  let cosL = max(dot(onSphere, -ln), 0.0);
+  if (cosL <= 0.0) {
+    return vec3f(0.0);
+  }
+  if (isOccluded(hitPos, ln, dist - 0.01)) {
+    return vec3f(0.0);
+  }
+  let area = 4.0 * 3.14159265 * LAMP_R * LAMP_R;
+  return albedo / 3.14159265 * LAMP_COLOR * cosS * (area * cosL / dist2);
+}
+
 fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
   var helper = vec3f(0.0, 1.0, 0.0);
   if (abs(n.y) > 0.9) {
@@ -223,16 +254,16 @@ fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   let bitangent = normalize(cross(n, tangent));
   let origin = pos + n * 0.002;
   var blocked = 0.0;
-  if (isOccluded(origin, normalize(n + tangent))) {
+  if (isOccluded(origin, normalize(n + tangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n - tangent))) {
+  if (isOccluded(origin, normalize(n - tangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n + bitangent))) {
+  if (isOccluded(origin, normalize(n + bitangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n - bitangent))) {
+  if (isOccluded(origin, normalize(n - bitangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
   return 1.0 - (blocked / 4.0) * 0.7;
@@ -275,7 +306,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let closestT = primary.t;
     let hitPos = camera.eye + dir * closestT + n * 0.001;
     var diffuse = max(dot(n, l), 0.0);
-    if (diffuse > 0.0 && isOccluded(hitPos, l)) {
+    if (diffuse > 0.0 && isOccluded(hitPos, l, 1000000.0)) {
       diffuse = 0.0;
     }
     // Materials: 0 diffuse, 1 mirror, 2 glass, 3 emissive.
@@ -295,7 +326,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         let rn = normalize(rhit.normal);
         var rdiff = max(dot(rn, l), 0.0);
         let rpos = rorigin + rdir * rhit.t + rn * 0.001;
-        if (rdiff > 0.0 && isOccluded(rpos, l)) {
+        if (rdiff > 0.0 && isOccluded(rpos, l, 1000000.0)) {
           rdiff = 0.0;
         }
         refl = vec3f(0.7) * rdiff + skyColor(rn) * 0.25;
@@ -317,7 +348,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
               let tn = normalize(thit.normal);
               var tdiff = max(dot(tn, l), 0.0);
               let tpos = outOrigin + tout * thit.t + tn * 0.001;
-              if (tdiff > 0.0 && isOccluded(tpos, l)) {
+              if (tdiff > 0.0 && isOccluded(tpos, l, 1000000.0)) {
                 tdiff = 0.0;
               }
               trans = vec3f(0.75) * tdiff + skyColor(tn) * 0.25;
@@ -348,12 +379,15 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         let bn = normalize(bounce.normal);
         var bouncediff = max(dot(bn, l), 0.0);
         let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
-        if (bouncediff > 0.0 && isOccluded(bouncePos, l)) {
+        if (bouncediff > 0.0 && isOccluded(bouncePos, l, 1000000.0)) {
           bouncediff = 0.0;
         }
         indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
       }
-      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + vec3f(0.02);
+      let lampU1 = hash01(gid.xy, camera.frame * 4u + 4u);
+      let lampU2 = hash01(gid.xy, camera.frame * 4u + 5u);
+      let lampE = lampSample(hitPos, n, lampU1, lampU2, albedo);
+      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
       if (primary.material == 1u) {
         let rdir = reflect(dir, n);
         let rorigin = hitPos + n * 0.001;
@@ -365,7 +399,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
           let rn = normalize(rhit.normal);
           var rdiff = max(dot(rn, l), 0.0);
           let rpos = rorigin + rdir * rhit.t + rn * 0.001;
-          if (rdiff > 0.0 && isOccluded(rpos, l)) {
+          if (rdiff > 0.0 && isOccluded(rpos, l, 1000000.0)) {
             rdiff = 0.0;
           }
           refl = vec3f(0.6) * rdiff + skyColor(rn) * 0.2;
