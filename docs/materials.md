@@ -25,7 +25,16 @@ instead of by triangle number ranges.
 - Its bright spot in the cube mirror and through the glass sphere.
 - Bounce light near the lamp picks up brightness over time.
 
+## Lamp direct light
+
+The lamp also lights the scene. Each diffuse hit samples one random
+point on the lamp sphere per frame. The sample weight uses the exact
+single-sample estimator: albedo over pi, times lamp color, times the
+surface cosine, times sphere area times lamp cosine over distance
+squared. A distance limited shadow ray blocks samples behind geometry.
+Frames blend, so the warm pool of light converges over time.
+
 ## Limits
 
-- The lamp is emissive only. It does not yet cast sampled light.
-  Real area light sampling comes later.
+- The lamp position and radius are hard coded in both triangles.ts and
+  the shader. They must match. A shared light buffer comes later.
