@@ -114,6 +114,63 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
   return false;
 }
 
+struct Hit {
+  found: bool,
+  t: f32,
+  normal: vec3f,
+}
+
+fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = 0u;
+  var result: Hit;
+  result.found = false;
+  result.t = 1000000.0;
+  result.normal = vec3f(0.0, 0.0, 1.0);
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        let tri = triangles[ti];
+        let t = intersectTriangle(origin, dir, tri);
+        if (t > 0.0 && t < result.t) {
+          result.t = t;
+          result.found = true;
+          result.normal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+          if (dot(result.normal, dir) > 0.0) {
+            result.normal = -result.normal;
+          }
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return result;
+}
+
 fn hash01(pixel: vec2u, salt: u32) -> f32 {
   var s = pixel.x * 1973u + pixel.y * 9277u + salt * 26699u + 1u;
   s = (s ^ (s >> 15u)) * 2246822519u;
@@ -164,62 +221,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let world = camera.invViewProj * ndc;
   let dir = normalize(world.xyz / world.w - camera.eye);
 
-  var stack: array<u32, 64>;
-  var sp = 0u;
-  stack[0] = 0u;
-  sp = 1u;
-  var hit = false;
-  var closestT = 1000000.0;
-  var hitNormal = vec3f(0.0, 0.0, 1.0);
-
-  loop {
-    if (sp == 0u) {
-      break;
-    }
-    sp = sp - 1u;
-    let ni = stack[sp];
-    let node = nodes[ni];
-
-    if (!intersectAabb(camera.eye, dir, node.min, node.max)) {
-      continue;
-    }
-
-    if (node.count > 0u) {
-      var k = 0u;
-      loop {
-        if (k >= node.count) {
-          break;
-        }
-        let ti = triIndices[node.first + k];
-        let tri = triangles[ti];
-        let t = intersectTriangle(camera.eye, dir, tri);
-        if (t > 0.0 && t < closestT) {
-          closestT = t;
-          hit = true;
-          hitNormal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
-          if (dot(hitNormal, dir) > 0.0) {
-            hitNormal = -hitNormal;
-          }
-        }
-        k = k + 1u;
-      }
-    } else {
-      if (node.right >= 0) {
-        stack[sp] = u32(node.right);
-        sp = sp + 1u;
-      }
-      if (node.left >= 0) {
-        stack[sp] = u32(node.left);
-        sp = sp + 1u;
-      }
-    }
-
-  }
+  let primary = traceClosest(camera.eye, dir);
 
   var color = vec3f(0.02, 0.03, 0.06);
-  if (hit) {
-    let n = normalize(hitNormal);
+  if (primary.found) {
+    let n = normalize(primary.normal);
     let l = normalize(camera.lightDir);
+    let closestT = primary.t;
     let hitPos = camera.eye + dir * closestT + n * 0.001;
     var diffuse = max(dot(n, l), 0.0);
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
