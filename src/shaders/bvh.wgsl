@@ -269,6 +269,24 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
       }
       color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
+      if (primary.tri < 12u) {
+        let rdir = reflect(dir, n);
+        let rorigin = hitPos + n * 0.001;
+        let rhit = traceClosest(rorigin, rdir);
+        var refl = skyColor(rdir);
+        if (rhit.found) {
+          let rn = normalize(rhit.normal);
+          var rdiff = max(dot(rn, l), 0.0);
+          let rpos = rorigin + rdir * rhit.t + rn * 0.001;
+          if (rdiff > 0.0 && isOccluded(rpos, l)) {
+            rdiff = 0.0;
+          }
+          refl = vec3f(0.6) * rdiff + skyColor(rn) * 0.2;
+        }
+        let cosTheta = max(dot(-dir, n), 0.0);
+        let fresnel = 0.3 + 0.7 * pow(1.0 - cosTheta, 5.0);
+        color = mix(color, refl * vec3f(0.9, 0.95, 1.0) + color * 0.15, fresnel);
+      }
     } else {
       let skyFill = skyColor(n) * 0.12;
       color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * faceTint + vec3f(0.02);
