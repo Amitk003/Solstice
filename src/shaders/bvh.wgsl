@@ -183,6 +183,21 @@ fn skyColor(dir: vec3f) -> vec3f {
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
 }
 
+fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let r = sqrt(u1);
+  let phi = 6.2831853 * u2;
+  let x = r * cos(phi);
+  let y = r * sin(phi);
+  let z = sqrt(max(0.0, 1.0 - u1));
+  return normalize(tangent * x + bitangent * y + n * z);
+}
+
 fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   var helper = vec3f(0.0, 1.0, 0.0);
   if (abs(n.y) > 0.9) {
