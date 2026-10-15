@@ -277,10 +277,55 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     }
     // Cube is tris 0 to 11, floor is 12 to 13, sphere is 14 and up.
     var albedo = 0.6 + 0.4 * abs(n);
-    if (primary.tri >= 14u) {
-      albedo = albedo * vec3f(1.15, 0.45, 0.35);
+    if ((camera.flags & 1u) != 0u && primary.tri >= 14u) {
+      let cosT = max(dot(-dir, n), 0.0);
+      let fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
+      let rdir = reflect(dir, n);
+      let rorigin = hitPos + n * 0.001;
+      let rhit = traceClosest(rorigin, rdir);
+      var refl = skyColor(rdir);
+      if (rhit.found) {
+        let rn = normalize(rhit.normal);
+        var rdiff = max(dot(rn, l), 0.0);
+        let rpos = rorigin + rdir * rhit.t + rn * 0.001;
+        if (rdiff > 0.0 && isOccluded(rpos, l)) {
+          rdiff = 0.0;
+        }
+        refl = vec3f(0.7) * rdiff + skyColor(rn) * 0.25;
+      }
+      var trans = skyColor(dir) * 0.6;
+      let tin = refract(dir, n, 1.0 / 1.5);
+      if (dot(tin, tin) > 0.000001) {
+        let inOrigin = hitPos - n * 0.002;
+        let exit = traceClosest(inOrigin, tin);
+        if (exit.found) {
+          let en = normalize(exit.normal);
+          let tout = refract(tin, en, 1.5);
+          if (dot(tout, tout) > 0.000001) {
+            let outOrigin = inOrigin + tin * exit.t + tout * 0.002;
+            let thit = traceClosest(outOrigin, tout);
+            if (thit.found) {
+              let tn = normalize(thit.normal);
+              var tdiff = max(dot(tn, l), 0.0);
+              let tpos = outOrigin + tout * thit.t + tn * 0.001;
+              if (tdiff > 0.0 && isOccluded(tpos, l)) {
+                tdiff = 0.0;
+              }
+              trans = vec3f(0.75) * tdiff + skyColor(tn) * 0.25;
+            } else {
+              trans = skyColor(tout);
+            }
+            trans = trans * exp(-vec3f(0.5, 0.18, 0.15) * exit.t);
+          } else {
+            trans = refl;
+          }
+        } else {
+          trans = skyColor(tin);
+        }
+      }
+      color = mix(trans, refl, fres) + vec3f(0.02);
     }
-    if ((camera.flags & 1u) != 0u) {
+    if ((camera.flags & 1u) != 0u && primary.tri < 14u) {
       let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
       let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
       let bounceDir = cosineHemisphere(n, u1, u2);
