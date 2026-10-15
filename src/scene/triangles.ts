@@ -4,8 +4,11 @@ export interface TriangleData {
   v2: [number, number, number];
 }
 
+export const CUBE_TRI_COUNT = 12;
+export const FLOOR_TRI_COUNT = 2;
+
 export function makeTriangles(): TriangleData[] {
-  return [...makeCubeTriangles(), ...makeFloorTriangles()];
+  return [...makeCubeTriangles(), ...makeFloorTriangles(), ...makeSphereTriangles()];
 }
 
 export function makeFloorTriangles(): TriangleData[] {
@@ -53,7 +56,35 @@ export function makeCubeTriangles(): TriangleData[] {
   return tris;
 }
 
-function ensureOutward(t: TriangleData): TriangleData {
+export function makeSphereTriangles(
+  center: [number, number, number] = [2.1, -0.7, 0.4],
+  radius = 0.8,
+  latSegs = 20,
+  lonSegs = 14,
+): TriangleData[] {
+  const point = (lat: number, lon: number): [number, number, number] => {
+    const theta = (lat / latSegs) * Math.PI;
+    const phi = (lon / lonSegs) * Math.PI * 2;
+    const x = radius * Math.sin(theta) * Math.cos(phi) + center[0];
+    const y = radius * Math.cos(theta) + center[1];
+    const z = radius * Math.sin(theta) * Math.sin(phi) + center[2];
+    return [x, y, z];
+  };
+  const tris: TriangleData[] = [];
+  for (let lat = 0; lat < latSegs; lat++) {
+    for (let lon = 0; lon < lonSegs; lon++) {
+      const a = point(lat, lon);
+      const b = point(lat + 1, lon);
+      const c = point(lat, lon + 1);
+      const d = point(lat + 1, lon + 1);
+      tris.push(ensureOutward({ v0: a, v1: b, v2: d }, center));
+      tris.push(ensureOutward({ v0: a, v1: d, v2: c }, center));
+    }
+  }
+  return tris;
+}
+
+function ensureOutward(t: TriangleData, center: [number, number, number] = [0, 0, 0]): TriangleData {
   const [ax, ay, az] = t.v0;
   const [bx, by, bz] = t.v1;
   const [cx, cy, cz] = t.v2;
@@ -66,9 +97,9 @@ function ensureOutward(t: TriangleData): TriangleData {
   const nx = e1y * e2z - e1z * e2y;
   const ny = e1z * e2x - e1x * e2z;
   const nz = e1x * e2y - e1y * e2x;
-  const cxv = (ax + bx + cx) / 3;
-  const cyv = (ay + by + cy) / 3;
-  const czv = (az + bz + cz) / 3;
+  const cxv = (ax + bx + cx) / 3 - center[0];
+  const cyv = (ay + by + cy) / 3 - center[1];
+  const czv = (az + bz + cz) / 3 - center[2];
   const dotNc = nx * cxv + ny * cyv + nz * czv;
   if (dotNc < 0) {
     // Swap v1 and v2 to flip the normal.
