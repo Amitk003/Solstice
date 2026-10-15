@@ -28,11 +28,24 @@
         border-radius: 6px;
         font-size: 14px;
       }
+      #panel {
+        position: fixed;
+        bottom: 12px;
+        left: 12px;
+        padding: 8px 12px;
+        background: rgba(11, 15, 20, 0.7);
+        border: 1px solid #2a3442;
+        border-radius: 6px;
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
     <div id="status">Starting WebGPU...</div>
+    <div id="panel">
+      <label><input type="checkbox" id="bounceToggle" checked /> Indirect bounce</label>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

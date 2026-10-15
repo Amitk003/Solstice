@@ -5,7 +5,7 @@ struct Camera {
   lightDir: vec3f,
   _pad1: f32,
   frame: u32,
-  _pad2: u32,
+  flags: u32,
   _pad3: u32,
   _pad4: u32,
 }
@@ -248,23 +248,28 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
-    let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
-    let bounceDir = cosineHemisphere(n, u1, u2);
-    let bounceOrigin = hitPos + n * 0.001;
-    let bounce = traceClosest(bounceOrigin, bounceDir);
-    var indirect = skyColor(bounceDir) * 0.25;
-    if (bounce.found) {
-      let bn = normalize(bounce.normal);
-      var bouncediff = max(dot(bn, l), 0.0);
-      let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
-      if (bouncediff > 0.0 && isOccluded(bouncePos, l)) {
-        bouncediff = 0.0;
-      }
-      indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
-    }
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
+    if ((camera.flags & 1u) != 0u) {
+      let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
+      let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
+      let bounceDir = cosineHemisphere(n, u1, u2);
+      let bounceOrigin = hitPos + n * 0.001;
+      let bounce = traceClosest(bounceOrigin, bounceDir);
+      var indirect = skyColor(bounceDir) * 0.25;
+      if (bounce.found) {
+        let bn = normalize(bounce.normal);
+        var bouncediff = max(dot(bn, l), 0.0);
+        let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
+        if (bouncediff > 0.0 && isOccluded(bouncePos, l)) {
+          bouncediff = 0.0;
+        }
+        indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
+      }
+      color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
+    } else {
+      let skyFill = skyColor(n) * 0.12;
+      color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * faceTint + vec3f(0.02);
+    }
   } else {
     color = skyColor(dir);
   }

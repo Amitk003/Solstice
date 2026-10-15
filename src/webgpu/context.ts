@@ -4,9 +4,16 @@ import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 
+export interface RenderStats {
+  samples: number;
+  fps: number;
+}
+
 export interface RenderContext {
   start: () => void;
   stop: () => void;
+  getStats: () => RenderStats;
+  setBounceEnabled: (enabled: boolean) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -70,6 +77,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   let frameCount = 0;
+  let bounceEnabled = true;
+  let fps = 0;
+  let lastTime = 0;
 
   const tris = makeTriangles();
   const triData = trianglesStorageData(tris);
@@ -178,8 +188,19 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
     const encoder = device.createCommandEncoder();
 
+    const now = performance.now();
+    if (lastTime > 0) {
+      const dt = now - lastTime;
+      if (dt > 0) {
+        const instant = 1000 / dt;
+        fps = fps === 0 ? instant : fps * 0.9 + instant * 0.1;
+      }
+    }
+    lastTime = now;
+
     const aspect = canvas.width / canvas.height;
-    const uniformData = cameraUniformData(camera, aspect, frameCount);
+    const flags = bounceEnabled ? 1 : 0;
+    const uniformData = cameraUniformData(camera, aspect, frameCount, flags);
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
     const computePass = encoder.beginComputePass();
@@ -223,6 +244,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       if (raf) {
         cancelAnimationFrame(raf);
       }
+    },
+    getStats: () => ({ samples: frameCount, fps }),
+    setBounceEnabled: (enabled: boolean) => {
+      bounceEnabled = enabled;
+      frameCount = 0;
     },
   };
 }

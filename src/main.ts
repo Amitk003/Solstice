@@ -9,8 +9,19 @@ async function main(): Promise<void> {
 
   try {
     const context = await initWebGpu(canvas);
-    status.textContent = 'WebGPU ready. Rendering...';
     context.start();
+
+    const toggle = document.querySelector<HTMLInputElement>('#bounceToggle');
+    if (toggle) {
+      toggle.addEventListener('change', () => {
+        context.setBounceEnabled(toggle.checked);
+      });
+    }
+
+    window.setInterval(() => {
+      const stats = context.getStats();
+      status.textContent = `Solstice | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | drag to orbit`;
+    }, 500);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     status.textContent = `WebGPU error: ${message}`;
