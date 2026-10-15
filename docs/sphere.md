@@ -14,8 +14,14 @@ uses a warm red tint.
 ## Why this helps
 
 Curved geometry tests the BVH with hundreds of triangles instead of a
-few. It also shows faceted face normals, which motivates smooth vertex
-normals later.
+few.
+
+## Smooth normals
+
+Each triangle now stores a normal per vertex. The intersection test
+returns barycentric weights. The kernel blends the three normals by
+those weights. Flat parts keep face normals. The sphere uses true
+round normals, so it shades smooth instead of faceted.
 
 ## Limits
 
