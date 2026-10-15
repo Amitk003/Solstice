@@ -55,7 +55,12 @@ export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation
   camera.elevation = Math.max(-1.4, Math.min(1.4, camera.elevation + deltaElevation));
 }
 
-export function cameraUniformData(camera: Camera, aspect: number, frame: number): Float32Array {
+export function cameraUniformData(
+  camera: Camera,
+  aspect: number,
+  frame: number,
+  flags: number,
+): Float32Array {
   updateCamera(camera, aspect);
   const light = vec3.normalize(camera.lightDir);
   const data = new Float32Array(28); // mat4 + eye + pad + light + pad + frame + pad
@@ -69,7 +74,7 @@ export function cameraUniformData(camera: Camera, aspect: number, frame: number)
   data[22] = light[2] ?? 0;
   data[23] = 0; // padding
   new Uint32Array(data.buffer)[24] = frame;
-  data[25] = 0;
+  new Uint32Array(data.buffer)[25] = flags;
   data[26] = 0;
   data[27] = 0;
   return data;
