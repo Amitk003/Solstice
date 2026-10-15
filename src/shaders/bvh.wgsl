@@ -118,6 +118,7 @@ struct Hit {
   found: bool,
   t: f32,
   normal: vec3f,
+  tri: u32,
 }
 
 fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
@@ -128,6 +129,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
   result.found = false;
   result.t = 1000000.0;
   result.normal = vec3f(0.0, 0.0, 1.0);
+  result.tri = 0u;
   loop {
     if (sp == 0u) {
       break;
@@ -150,6 +152,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
         if (t > 0.0 && t < result.t) {
           result.t = t;
           result.found = true;
+          result.tri = ti;
           result.normal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
           if (dot(result.normal, dir) > 0.0) {
             result.normal = -result.normal;
