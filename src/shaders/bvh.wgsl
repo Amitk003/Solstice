@@ -22,7 +22,7 @@ struct Triangle {
   v2: vec3f,
   _pad4: f32,
   n2: vec3f,
-  _pad5: f32,
+  material: u32,
 }
 
 struct BvhNode {
@@ -126,6 +126,7 @@ struct Hit {
   normal: vec3f,
   tri: u32,
   uv: vec2f,
+  material: u32,
 }
 
 fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
@@ -138,6 +139,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
   result.normal = vec3f(0.0, 0.0, 1.0);
   result.tri = 0u;
   result.uv = vec2f(0.0);
+  result.material = 0u;
   loop {
     if (sp == 0u) {
       break;
@@ -162,6 +164,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
           result.found = true;
           result.tri = ti;
           result.uv = tuv.yz;
+          result.material = tri.material;
           let w = 1.0 - tuv.y - tuv.z;
           result.normal = normalize(tri.n0 * w + tri.n1 * tuv.y + tri.n2 * tuv.z);
           if (dot(result.normal, dir) > 0.0) {
