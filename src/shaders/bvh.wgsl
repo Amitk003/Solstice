@@ -251,7 +251,11 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let faceTint = 0.6 + 0.4 * abs(n);
+    // Cube is tris 0 to 11, floor is 12 to 13, sphere is 14 and up.
+    var albedo = 0.6 + 0.4 * abs(n);
+    if (primary.tri >= 14u) {
+      albedo = albedo * vec3f(1.15, 0.45, 0.35);
+    }
     if ((camera.flags & 1u) != 0u) {
       let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
       let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
@@ -268,7 +272,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         }
         indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
       }
-      color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
+      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + vec3f(0.02);
       if (primary.tri < 12u) {
         let rdir = reflect(dir, n);
         let rorigin = hitPos + n * 0.001;
@@ -289,7 +293,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
     } else {
       let skyFill = skyColor(n) * 0.12;
-      color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * faceTint + vec3f(0.02);
+      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * albedo + vec3f(0.02);
     }
   } else {
     color = skyColor(dir);
