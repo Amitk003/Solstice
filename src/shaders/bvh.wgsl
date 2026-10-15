@@ -114,6 +114,63 @@ fn isOccluded(origin: vec3f, dir: vec3f) -> bool {
   return false;
 }
 
+struct Hit {
+  found: bool,
+  t: f32,
+  normal: vec3f,
+}
+
+fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = 0u;
+  var result: Hit;
+  result.found = false;
+  result.t = 1000000.0;
+  result.normal = vec3f(0.0, 0.0, 1.0);
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        let tri = triangles[ti];
+        let t = intersectTriangle(origin, dir, tri);
+        if (t > 0.0 && t < result.t) {
+          result.t = t;
+          result.found = true;
+          result.normal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+          if (dot(result.normal, dir) > 0.0) {
+            result.normal = -result.normal;
+          }
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return result;
+}
+
 fn hash01(pixel: vec2u, salt: u32) -> f32 {
   var s = pixel.x * 1973u + pixel.y * 9277u + salt * 26699u + 1u;
   s = (s ^ (s >> 15u)) * 2246822519u;
@@ -124,6 +181,21 @@ fn hash01(pixel: vec2u, salt: u32) -> f32 {
 fn skyColor(dir: vec3f) -> vec3f {
   let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+}
+
+fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let r = sqrt(u1);
+  let phi = 6.2831853 * u2;
+  let x = r * cos(phi);
+  let y = r * sin(phi);
+  let z = sqrt(max(0.0, 1.0 - u1));
+  return normalize(tangent * x + bitangent * y + n * z);
 }
 
 fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
@@ -164,72 +236,35 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let world = camera.invViewProj * ndc;
   let dir = normalize(world.xyz / world.w - camera.eye);
 
-  var stack: array<u32, 64>;
-  var sp = 0u;
-  stack[0] = 0u;
-  sp = 1u;
-  var hit = false;
-  var closestT = 1000000.0;
-  var hitNormal = vec3f(0.0, 0.0, 1.0);
-
-  loop {
-    if (sp == 0u) {
-      break;
-    }
-    sp = sp - 1u;
-    let ni = stack[sp];
-    let node = nodes[ni];
-
-    if (!intersectAabb(camera.eye, dir, node.min, node.max)) {
-      continue;
-    }
-
-    if (node.count > 0u) {
-      var k = 0u;
-      loop {
-        if (k >= node.count) {
-          break;
-        }
-        let ti = triIndices[node.first + k];
-        let tri = triangles[ti];
-        let t = intersectTriangle(camera.eye, dir, tri);
-        if (t > 0.0 && t < closestT) {
-          closestT = t;
-          hit = true;
-          hitNormal = normalize(cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
-          if (dot(hitNormal, dir) > 0.0) {
-            hitNormal = -hitNormal;
-          }
-        }
-        k = k + 1u;
-      }
-    } else {
-      if (node.right >= 0) {
-        stack[sp] = u32(node.right);
-        sp = sp + 1u;
-      }
-      if (node.left >= 0) {
-        stack[sp] = u32(node.left);
-        sp = sp + 1u;
-      }
-    }
-
-  }
+  let primary = traceClosest(camera.eye, dir);
 
   var color = vec3f(0.02, 0.03, 0.06);
-  if (hit) {
-    let n = normalize(hitNormal);
+  if (primary.found) {
+    let n = normalize(primary.normal);
     let l = normalize(camera.lightDir);
+    let closestT = primary.t;
     let hitPos = camera.eye + dir * closestT + n * 0.001;
     var diffuse = max(dot(n, l), 0.0);
     if (diffuse > 0.0 && isOccluded(hitPos, l)) {
       diffuse = 0.0;
     }
-    let ao = ambientOcclusion(hitPos, n);
-    let skyFill = skyColor(n) * 0.12 * ao;
-    let ambient = 0.1 * ao;
+    let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
+    let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
+    let bounceDir = cosineHemisphere(n, u1, u2);
+    let bounceOrigin = hitPos + n * 0.001;
+    let bounce = traceClosest(bounceOrigin, bounceDir);
+    var indirect = skyColor(bounceDir) * 0.25;
+    if (bounce.found) {
+      let bn = normalize(bounce.normal);
+      var bouncediff = max(dot(bn, l), 0.0);
+      let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
+      if (bouncediff > 0.0 && isOccluded(bouncePos, l)) {
+        bouncediff = 0.0;
+      }
+      indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
+    }
     let faceTint = 0.6 + 0.4 * abs(n);
-    color = 1.6 * faceTint * (ambient + (1.0 - ambient) * diffuse) + skyFill + vec3f(0.02);
+    color = 1.6 * faceTint * (0.05 + 0.95 * diffuse) * 0.75 + indirect * faceTint + vec3f(0.02);
   } else {
     color = skyColor(dir);
   }
