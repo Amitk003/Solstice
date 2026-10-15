@@ -45,6 +45,14 @@
     <div id="status">Starting WebGPU...</div>
     <div id="panel">
       <label><input type="checkbox" id="bounceToggle" checked /> Indirect bounce</label>
+      <label style="margin-left: 12px"
+        >Scale
+        <select id="resSelect">
+          <option value="0.5">50%</option>
+          <option value="0.75">75%</option>
+          <option value="1" selected>100%</option>
+        </select>
+      </label>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

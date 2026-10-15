@@ -18,6 +18,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const resSelect = document.querySelector<HTMLSelectElement>('#resSelect');
+    if (resSelect) {
+      resSelect.addEventListener('change', () => {
+        context.setResolutionScale(Number(resSelect.value));
+      });
+    }
+
     window.setInterval(() => {
       const stats = context.getStats();
       status.textContent = `Solstice | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | drag to orbit`;
