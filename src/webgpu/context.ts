@@ -15,6 +15,7 @@ export interface RenderContext {
   getStats: () => RenderStats;
   setBounceEnabled: (enabled: boolean) => void;
   setResolutionScale: (scale: number) => void;
+  setViewMode: (mode: number) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -80,6 +81,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let frameCount = 0;
   let bounceEnabled = true;
   let resScale = 1;
+  let viewMode = 0;
   let fps = 0;
   let lastTime = 0;
 
@@ -201,7 +203,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     lastTime = now;
 
     const aspect = canvas.width / canvas.height;
-    const flags = bounceEnabled ? 1 : 0;
+    const flags = (bounceEnabled ? 1 : 0) | (viewMode << 1);
     const uniformData = cameraUniformData(camera, aspect, frameCount, flags);
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
@@ -257,6 +259,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       if (clamped !== resScale) {
         resScale = clamped;
         resize();
+      }
+    },
+    setViewMode: (mode: number) => {
+      const clamped = Math.max(0, Math.min(2, Math.floor(mode)));
+      if (clamped !== viewMode) {
+        viewMode = clamped;
+        frameCount = 0;
       }
     },
   };

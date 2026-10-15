@@ -250,9 +250,23 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dir = normalize(world.xyz / world.w - camera.eye);
 
   let primary = traceClosest(camera.eye, dir);
+  let viewMode = (camera.flags >> 1u) & 3u;
 
   var color = vec3f(0.02, 0.03, 0.06);
-  if (primary.found) {
+  if (viewMode == 1u) {
+    if (primary.found) {
+      color = normalize(primary.normal) * 0.5 + 0.5;
+    } else {
+      color = vec3f(0.0);
+    }
+  } else if (viewMode == 2u) {
+    if (primary.found) {
+      let depth = 1.0 / (1.0 + 0.15 * primary.t);
+      color = vec3f(depth);
+    } else {
+      color = vec3f(0.0);
+    }
+  } else if (primary.found) {
     let n = normalize(primary.normal);
     let l = normalize(camera.lightDir);
     let closestT = primary.t;

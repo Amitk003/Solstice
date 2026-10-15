@@ -25,9 +25,19 @@ async function main(): Promise<void> {
       });
     }
 
+    const modeNames = ['shaded', 'normal', 'depth'];
+    let viewMode = 0;
+    window.addEventListener('keydown', (event) => {
+      if (event.key === '1' || event.key === '2' || event.key === '3') {
+        viewMode = Number(event.key) - 1;
+        context.setViewMode(viewMode);
+      }
+    });
+
     window.setInterval(() => {
       const stats = context.getStats();
-      status.textContent = `Solstice | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | drag to orbit`;
+      const mode = modeNames[viewMode] ?? 'shaded';
+      status.textContent = `Solstice | ${mode} | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | drag to orbit`;
     }, 500);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
