@@ -13,7 +13,8 @@ triangles at its index. That is the whole job.
 
 - kind: diffuse, mirror, glass, or emissive.
 - baseColor: the surface color. Also the reflection tint for mirrors.
-- roughness: kept for later. Not used by the shading yet.
+- roughness: how blurry a mirror reflection is. Low is sharp, high is
+  soft.
 - ior: index of refraction for glass.
 - emission: how strongly an emissive surface glows.
 - absorption: how fast light dims while traveling through glass.
@@ -45,12 +46,14 @@ buffer rules want.
 ## What you should see
 
 - The floor is a flat warm gray instead of the old normal based tint.
-- The mirror cube reflects with its own base color as the tint.
+- The mirror cube reflects with its own base color as the tint, and its
+  roughness softens the reflection.
 - Glass uses the table index and absorption.
 - The lamp still glows the same warm white.
 
 ## Limits
 
-- Roughness is stored but unused. Real glossy reflection comes later.
+- Roughness applies to mirror reflections only. Diffuse and glass ignore
+  it for now.
 - Only the fields above are honored. Metallic workflow and textures come
   later.
