@@ -1,3 +1,5 @@
+import { LAMP_LIGHT } from './lights';
+
 export enum TriMaterial {
   Diffuse = 0,
   Mirror = 1,
@@ -51,7 +53,13 @@ export function makeTriangles(): TriangleData[] {
     ...makeCubeTriangles(),
     ...makeFloorTriangles(),
     ...makeSphereTriangles(),
-    ...makeSphereTriangles([0.4, 2.3, 1.6], 0.22, 10, 8, TriMaterial.Emissive),
+    ...makeSphereTriangles(
+      LAMP_LIGHT.position,
+      LAMP_LIGHT.radius,
+      10,
+      8,
+      TriMaterial.Emissive,
+    ),
   ];
 }
 
