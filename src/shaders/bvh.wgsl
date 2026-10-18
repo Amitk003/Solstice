@@ -265,6 +265,24 @@ fn lampSample(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: v
   return albedo / 3.14159265 * light.color * cosS * (area * cosL / dist2);
 }
 
+// Draw a half vector from the GGX distribution around n. Roughness spreads
+// it out. Low roughness clusters near n, high roughness spreads widely.
+fn importanceSampleGGX(u1: f32, u2: f32, roughness: f32, n: vec3f) -> vec3f {
+  let a = max(roughness * roughness, 0.0001);
+  let phi = 6.2831853 * u1;
+  let denom = 1.0 + (a * a - 1.0) * u2;
+  let cosTheta = sqrt((1.0 - u2) / denom);
+  let sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let h = tangent * (sinTheta * cos(phi)) + bitangent * (sinTheta * sin(phi)) + n * cosTheta;
+  return normalize(h);
+}
+
 fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
   var helper = vec3f(0.0, 1.0, 0.0);
   if (abs(n.y) > 0.9) {
