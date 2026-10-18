@@ -1,5 +1,5 @@
-import { LAMP_LIGHT } from './lights';
-import { MAT_EMISSIVE, MAT_FLOOR, MAT_GLASS, MAT_MIRROR } from './materials';
+import { FILL_LIGHT, LAMP_LIGHT } from './lights';
+import { MAT_FILL, MAT_FLOOR, MAT_GLASS, MAT_LAMP, MAT_MIRROR } from './materials';
 
 export interface TriangleData {
   v0: [number, number, number];
@@ -47,13 +47,8 @@ export function makeTriangles(): TriangleData[] {
     ...makeCubeTriangles(),
     ...makeFloorTriangles(),
     ...makeSphereTriangles(),
-    ...makeSphereTriangles(
-      LAMP_LIGHT.position,
-      LAMP_LIGHT.radius,
-      10,
-      8,
-      MAT_EMISSIVE,
-    ),
+    ...makeSphereTriangles(LAMP_LIGHT.position, LAMP_LIGHT.radius, 10, 8, MAT_LAMP),
+    ...makeSphereTriangles(FILL_LIGHT.position, FILL_LIGHT.radius, 10, 8, MAT_FILL),
   ];
 }
 
