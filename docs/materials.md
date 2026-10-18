@@ -36,5 +36,6 @@ Frames blend, so the warm pool of light converges over time.
 
 ## Limits
 
-- One lamp light only. The light buffer supports more, but the shading
-  code reads index 0 today.
+- The material id is now an index into the table in
+  `docs/material-table.md`. See that page for the settings each id points
+  at.

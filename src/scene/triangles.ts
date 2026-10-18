@@ -1,11 +1,5 @@
 import { LAMP_LIGHT } from './lights';
-
-export enum TriMaterial {
-  Diffuse = 0,
-  Mirror = 1,
-  Glass = 2,
-  Emissive = 3,
-}
+import { MAT_EMISSIVE, MAT_FLOOR, MAT_GLASS, MAT_MIRROR } from './materials';
 
 export interface TriangleData {
   v0: [number, number, number];
@@ -14,7 +8,7 @@ export interface TriangleData {
   n0: [number, number, number];
   n1: [number, number, number];
   n2: [number, number, number];
-  m: number;
+  m: number; // index into MATERIALS
 }
 
 function faceNormal(
@@ -39,7 +33,7 @@ function withFaceNormals(
   v0: [number, number, number],
   v1: [number, number, number],
   v2: [number, number, number],
-  m: number = TriMaterial.Diffuse,
+  m: number = MAT_FLOOR,
 ): TriangleData {
   const n = faceNormal(v0, v1, v2);
   return { v0, v1, v2, n0: n, n1: n, n2: n, m };
@@ -58,7 +52,7 @@ export function makeTriangles(): TriangleData[] {
       LAMP_LIGHT.radius,
       10,
       8,
-      TriMaterial.Emissive,
+      MAT_EMISSIVE,
     ),
   ];
 }
@@ -98,8 +92,8 @@ export function makeCubeTriangles(): TriangleData[] {
   for (const face of CUBE_FACES) {
     const [a, b, c, d] = face;
     const quadTris: TriangleData[] = [
-      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[b]!, CUBE_VERTICES[c]!, TriMaterial.Mirror),
-      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[c]!, CUBE_VERTICES[d]!, TriMaterial.Mirror),
+      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[b]!, CUBE_VERTICES[c]!, MAT_MIRROR),
+      withFaceNormals(CUBE_VERTICES[a]!, CUBE_VERTICES[c]!, CUBE_VERTICES[d]!, MAT_MIRROR),
     ];
     for (const t of quadTris) {
       tris.push(ensureOutward(t));
@@ -113,7 +107,7 @@ export function makeSphereTriangles(
   radius = 0.8,
   latSegs = 20,
   lonSegs = 14,
-  material: number = TriMaterial.Glass,
+  material: number = MAT_GLASS,
 ): TriangleData[] {
   const point = (lat: number, lon: number): [number, number, number] => {
     const theta = (lat / latSegs) * Math.PI;

@@ -44,6 +44,18 @@ struct Light {
   _pad0: f32,
 }
 
+// Layout must match materialsStorageData in materials.ts.
+struct Material {
+  baseColor: vec3f,
+  roughness: f32,
+  absorption: vec3f,
+  ior: f32,
+  kind: u32,
+  emission: f32,
+  _pad0: u32,
+  _pad1: u32,
+}
+
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> triangles: array<Triangle>;
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
@@ -51,6 +63,7 @@ struct Light {
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
 @group(0) @binding(6) var<storage, read> lights: array<Light>;
+@group(0) @binding(7) var<storage, read> materials: array<Material>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -212,6 +225,21 @@ fn skyColor(dir: vec3f) -> vec3f {
 // The single lamp light. More lights can be added without touching this code.
 const LAMP_INDEX = 0u;
 
+// Material kinds must match MaterialKind in materials.ts.
+const KIND_DIFFUSE = 0u;
+const KIND_MIRROR = 1u;
+const KIND_GLASS = 2u;
+const KIND_EMISSIVE = 3u;
+
+fn isEmissive(index: u32) -> bool {
+  return materials[index].kind == KIND_EMISSIVE;
+}
+
+fn emissiveColor(index: u32) -> vec3f {
+  let m = materials[index];
+  return m.baseColor * m.emission;
+}
+
 fn lampSample(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
   let z = 1.0 - 2.0 * u1;
   let r = sqrt(max(0.0, 1.0 - z * z));
@@ -316,19 +344,19 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     if (diffuse > 0.0 && isOccluded(hitPos, l, 1000000.0)) {
       diffuse = 0.0;
     }
-    // Materials: 0 diffuse, 1 mirror, 2 glass, 3 emissive.
-    var albedo = 0.6 + 0.4 * abs(n);
-    if (primary.material == 3u) {
-      color = lights[LAMP_INDEX].color;
-    } else if ((camera.flags & 1u) != 0u && primary.material == 2u) {
+    let mat = materials[primary.material];
+    var albedo = mat.baseColor;
+    if (mat.kind == KIND_EMISSIVE) {
+      color = emissiveColor(primary.material);
+    } else if ((camera.flags & 1u) != 0u && mat.kind == KIND_GLASS) {
       let cosT = max(dot(-dir, n), 0.0);
       let fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
       let rdir = reflect(dir, n);
       let rorigin = hitPos + n * 0.001;
       let rhit = traceClosest(rorigin, rdir);
       var refl = skyColor(rdir);
-      if (rhit.found && rhit.material == 3u) {
-        refl = lights[LAMP_INDEX].color;
+      if (rhit.found && isEmissive(rhit.material)) {
+        refl = emissiveColor(rhit.material);
       } else if (rhit.found) {
         let rn = normalize(rhit.normal);
         var rdiff = max(dot(rn, l), 0.0);
@@ -339,18 +367,18 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         refl = vec3f(0.7) * rdiff + skyColor(rn) * 0.25;
       }
       var trans = skyColor(dir) * 0.6;
-      let tin = refract(dir, n, 1.0 / 1.5);
+      let tin = refract(dir, n, 1.0 / mat.ior);
       if (dot(tin, tin) > 0.000001) {
         let inOrigin = hitPos - n * 0.002;
         let exit = traceClosest(inOrigin, tin);
         if (exit.found) {
           let en = normalize(exit.normal);
-          let tout = refract(tin, en, 1.5);
+          let tout = refract(tin, en, mat.ior);
           if (dot(tout, tout) > 0.000001) {
             let outOrigin = inOrigin + tin * exit.t + tout * 0.002;
             let thit = traceClosest(outOrigin, tout);
-            if (thit.found && thit.material == 3u) {
-              trans = lights[LAMP_INDEX].color;
+            if (thit.found && isEmissive(thit.material)) {
+              trans = emissiveColor(thit.material);
             } else if (thit.found) {
               let tn = normalize(thit.normal);
               var tdiff = max(dot(tn, l), 0.0);
@@ -362,7 +390,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
             } else {
               trans = skyColor(tout);
             }
-            trans = trans * exp(-vec3f(0.5, 0.18, 0.15) * exit.t);
+            trans = trans * exp(-mat.absorption * exit.t);
           } else {
             trans = refl;
           }
@@ -372,17 +400,17 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
       color = mix(trans, refl, fres) + vec3f(0.02);
     }
-    if ((camera.flags & 1u) != 0u && primary.material < 2u) {
+    if ((camera.flags & 1u) != 0u && mat.kind < KIND_GLASS) {
       let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
       let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
       let bounceDir = cosineHemisphere(n, u1, u2);
       let bounceOrigin = hitPos + n * 0.001;
       let bounce = traceClosest(bounceOrigin, bounceDir);
       var indirect = skyColor(bounceDir) * 0.25;
-      if (bounce.found && bounce.material == 3u) {
-        indirect = lights[LAMP_INDEX].color;
+      if (bounce.found && isEmissive(bounce.material)) {
+        indirect = emissiveColor(bounce.material);
       }
-      if (bounce.found && bounce.material != 3u) {
+      if (bounce.found && !isEmissive(bounce.material)) {
         let bn = normalize(bounce.normal);
         var bouncediff = max(dot(bn, l), 0.0);
         let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
@@ -395,13 +423,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let lampU2 = hash01(gid.xy, camera.frame * 4u + 5u);
       let lampE = lampSample(lights[LAMP_INDEX], hitPos, n, lampU1, lampU2, albedo);
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
-      if (primary.material == 1u) {
+      if (mat.kind == KIND_MIRROR) {
         let rdir = reflect(dir, n);
         let rorigin = hitPos + n * 0.001;
         let rhit = traceClosest(rorigin, rdir);
         var refl = skyColor(rdir);
-        if (rhit.found && rhit.material == 3u) {
-          refl = lights[LAMP_INDEX].color;
+        if (rhit.found && isEmissive(rhit.material)) {
+          refl = emissiveColor(rhit.material);
         } else if (rhit.found) {
           let rn = normalize(rhit.normal);
           var rdiff = max(dot(rn, l), 0.0);
@@ -413,9 +441,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         }
         let cosTheta = max(dot(-dir, n), 0.0);
         let fresnel = 0.3 + 0.7 * pow(1.0 - cosTheta, 5.0);
-        color = mix(color, refl * vec3f(0.9, 0.95, 1.0) + color * 0.15, fresnel);
+        color = mix(color, refl * mat.baseColor + color * 0.15, fresnel);
       }
-    } else if (primary.material != 3u) {
+    } else if (mat.kind != KIND_EMISSIVE) {
       let skyFill = skyColor(n) * 0.12;
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * albedo + vec3f(0.02);
     }
