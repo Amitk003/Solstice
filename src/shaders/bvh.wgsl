@@ -6,8 +6,8 @@ struct Camera {
   _pad1: f32,
   frame: u32,
   flags: u32,
-  _pad3: u32,
-  _pad4: u32,
+  aperture: f32,
+  focusDistance: f32,
 }
 
 struct Triangle {
@@ -316,9 +316,30 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let uv = (vec2f(f32(gid.x) + 0.5 + jx, f32(gid.y) + 0.5 + jy) / vec2f(dims)) * 2.0 - 1.0;
   let ndc = vec4f(uv.x, -uv.y, 1.0, 1.0);
   let world = camera.invViewProj * ndc;
-  let dir = normalize(world.xyz / world.w - camera.eye);
+  let pinholeDir = normalize(world.xyz / world.w - camera.eye);
 
-  let primary = traceClosest(camera.eye, dir);
+  // Thin lens camera. Shift the ray origin across the aperture disk and aim
+  // it at the point the center ray focused on. Zero aperture is a pinhole.
+  let focusPoint = camera.eye + pinholeDir * camera.focusDistance;
+  var rayOrigin = camera.eye;
+  var dir = pinholeDir;
+  if (camera.aperture > 0.0) {
+    let centerW = camera.invViewProj * vec4f(0.0, 0.0, 1.0, 1.0);
+    let center = centerW.xyz / centerW.w;
+    let rightW = camera.invViewProj * vec4f(1.0, 0.0, 1.0, 1.0);
+    let right = normalize(rightW.xyz / rightW.w - center);
+    let upW = camera.invViewProj * vec4f(0.0, 1.0, 1.0, 1.0);
+    let up = normalize(upW.xyz / upW.w - center);
+    let a1 = hash01(gid.xy, camera.frame * 4u + 6u);
+    let a2 = hash01(gid.xy, camera.frame * 4u + 7u);
+    let ang = 6.2831853 * a1;
+    let rad = camera.aperture * sqrt(a2);
+    let offset = (right * cos(ang) + up * sin(ang)) * rad;
+    rayOrigin = camera.eye + offset;
+    dir = normalize(focusPoint - rayOrigin);
+  }
+
+  let primary = traceClosest(rayOrigin, dir);
   let viewMode = (camera.flags >> 1u) & 3u;
 
   var color = vec3f(0.02, 0.03, 0.06);
@@ -339,7 +360,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     let n = normalize(primary.normal);
     let l = normalize(camera.lightDir);
     let closestT = primary.t;
-    let hitPos = camera.eye + dir * closestT + n * 0.001;
+    let hitPos = rayOrigin + dir * closestT + n * 0.001;
     var diffuse = max(dot(n, l), 0.0);
     if (diffuse > 0.0 && isOccluded(hitPos, l, 1000000.0)) {
       diffuse = 0.0;
