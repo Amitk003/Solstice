@@ -222,9 +222,6 @@ fn skyColor(dir: vec3f) -> vec3f {
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
 }
 
-// The single lamp light. More lights can be added without touching this code.
-const LAMP_INDEX = 0u;
-
 // Material kinds must match MaterialKind in materials.ts.
 const KIND_DIFFUSE = 0u;
 const KIND_MIRROR = 1u;
@@ -240,7 +237,7 @@ fn emissiveColor(index: u32) -> vec3f {
   return m.baseColor * m.emission;
 }
 
-fn lampSample(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
+fn sampleSphereLight(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
   let z = 1.0 - 2.0 * u1;
   let r = sqrt(max(0.0, 1.0 - z * z));
   let phi = 6.2831853 * u2;
@@ -458,10 +455,14 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         }
         indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
       }
-      let lampU1 = hash01(gid.xy, camera.frame * 4u + 4u);
-      let lampU2 = hash01(gid.xy, camera.frame * 4u + 5u);
-      let lampE = lampSample(lights[LAMP_INDEX], hitPos, n, lampU1, lampU2, albedo);
-      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
+      var lightSum = vec3f(0.0);
+      let lightCount = arrayLength(&lights);
+      for (var li = 0u; li < lightCount; li = li + 1u) {
+        let lu1 = hash01(gid.xy, camera.frame * 64u + li * 2u + 20u);
+        let lu2 = hash01(gid.xy, camera.frame * 64u + li * 2u + 21u);
+        lightSum = lightSum + sampleSphereLight(lights[li], hitPos, n, lu1, lu2, albedo);
+      }
+      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lightSum + vec3f(0.02);
       if (mat.kind == KIND_MIRROR) {
         let u1 = hash01(gid.xy, camera.frame * 4u + 8u);
         let u2 = hash01(gid.xy, camera.frame * 4u + 9u);

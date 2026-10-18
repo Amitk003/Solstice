@@ -8,7 +8,8 @@ instead of by triangle number ranges.
 - 0: diffuse (floor)
 - 1: mirror (cube)
 - 2: glass (sphere)
-- 3: emissive (lamp)
+- 3: emissive (warm lamp)
+- 4: emissive (cool fill lamp)
 
 ## What changed
 

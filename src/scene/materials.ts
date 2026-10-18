@@ -2,7 +2,7 @@
 // shader reads the settings from a storage buffer. Adding a material means
 // adding one entry here and pointing triangles at it.
 
-import { LAMP_LIGHT } from './lights';
+import { FILL_LIGHT, LAMP_LIGHT } from './lights';
 
 export enum MaterialKind {
   Diffuse = 0,
@@ -23,7 +23,8 @@ export interface Material {
 export const MAT_FLOOR = 0;
 export const MAT_MIRROR = 1;
 export const MAT_GLASS = 2;
-export const MAT_EMISSIVE = 3;
+export const MAT_LAMP = 3;
+export const MAT_FILL = 4;
 
 export const MATERIALS: Material[] = [
   {
@@ -53,6 +54,14 @@ export const MATERIALS: Material[] = [
   {
     kind: MaterialKind.Emissive,
     baseColor: LAMP_LIGHT.color,
+    roughness: 1.0,
+    ior: 1.0,
+    emission: 1.0,
+    absorption: [0.0, 0.0, 0.0],
+  },
+  {
+    kind: MaterialKind.Emissive,
+    baseColor: FILL_LIGHT.color,
     roughness: 1.0,
     ior: 1.0,
     emission: 1.0,
