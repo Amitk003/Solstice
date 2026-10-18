@@ -463,7 +463,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let lampE = lampSample(lights[LAMP_INDEX], hitPos, n, lampU1, lampU2, albedo);
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
       if (mat.kind == KIND_MIRROR) {
-        let rdir = reflect(dir, n);
+        let u1 = hash01(gid.xy, camera.frame * 4u + 8u);
+        let u2 = hash01(gid.xy, camera.frame * 4u + 9u);
+        let h = importanceSampleGGX(u1, u2, mat.roughness, n);
+        var rdir = reflect(dir, h);
+        if (dot(rdir, n) <= 0.0) {
+          rdir = reflect(dir, n);
+        }
         let rorigin = hitPos + n * 0.001;
         let rhit = traceClosest(rorigin, rdir);
         var refl = skyColor(rdir);
@@ -479,8 +485,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
           refl = vec3f(0.6) * rdiff + skyColor(rn) * 0.2;
         }
         let cosTheta = max(dot(-dir, n), 0.0);
-        let fresnel = 0.3 + 0.7 * pow(1.0 - cosTheta, 5.0);
-        color = mix(color, refl * mat.baseColor + color * 0.15, fresnel);
+        let f0 = mat.baseColor;
+        let fresnel = f0 + (vec3f(1.0) - f0) * pow(1.0 - cosTheta, 5.0);
+        color = mix(color, refl * f0 + color * 0.15, fresnel);
       }
     } else if (mat.kind != KIND_EMISSIVE) {
       let skyFill = skyColor(n) * 0.12;
