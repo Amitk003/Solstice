@@ -36,5 +36,5 @@ Frames blend, so the warm pool of light converges over time.
 
 ## Limits
 
-- The lamp position and radius are hard coded in both triangles.ts and
-  the shader. They must match. A shared light buffer comes later.
+- One lamp light only. The light buffer supports more, but the shading
+  code reads index 0 today.

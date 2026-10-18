@@ -2,6 +2,7 @@ import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
+import { defaultLights, lightsStorageData } from '../scene/lights';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 
 export interface RenderStats {
@@ -107,6 +108,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
 
+  const lightData = lightsStorageData(defaultLights());
+  const lightsBuffer = device.createBuffer({
+    size: lightData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(lightsBuffer, 0, lightData);
+
   const renderPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module: shaderModuleBlit, entryPoint: 'vs' },
@@ -167,6 +175,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 3, resource: { buffer: triIndicesBuffer } },
         { binding: 4, resource: outputTexture.createView() },
         { binding: 5, resource: { buffer: accumBuffer } },
+        { binding: 6, resource: { buffer: lightsBuffer } },
       ],
     });
 

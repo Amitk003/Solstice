@@ -36,12 +36,21 @@ struct BvhNode {
   count: u32,
 }
 
+// Layout must match lightsStorageData in lights.ts.
+struct Light {
+  position: vec3f,
+  radius: f32,
+  color: vec3f,
+  _pad0: f32,
+}
+
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var<storage, read> triangles: array<Triangle>;
 @group(0) @binding(2) var<storage, read> nodes: array<BvhNode>;
 @group(0) @binding(3) var<storage, read> triIndices: array<u32>;
 @group(0) @binding(4) var outputTexture: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
+@group(0) @binding(6) var<storage, read> lights: array<Light>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -200,17 +209,15 @@ fn skyColor(dir: vec3f) -> vec3f {
   return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
 }
 
-// Must match the emissive sphere in triangles.ts.
-const LAMP_POS = vec3f(0.4, 2.3, 1.6);
-const LAMP_R = 0.22;
-const LAMP_COLOR = vec3f(4.0, 3.7, 3.2);
+// The single lamp light. More lights can be added without touching this code.
+const LAMP_INDEX = 0u;
 
-fn lampSample(hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
+fn lampSample(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
   let z = 1.0 - 2.0 * u1;
   let r = sqrt(max(0.0, 1.0 - z * z));
   let phi = 6.2831853 * u2;
   let onSphere = vec3f(r * cos(phi), r * sin(phi), z);
-  let lampPoint = LAMP_POS + LAMP_R * onSphere;
+  let lampPoint = light.position + light.radius * onSphere;
   let toLamp = lampPoint - hitPos;
   let dist2 = dot(toLamp, toLamp);
   let dist = sqrt(dist2);
@@ -226,8 +233,8 @@ fn lampSample(hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f
   if (isOccluded(hitPos, ln, dist - 0.01)) {
     return vec3f(0.0);
   }
-  let area = 4.0 * 3.14159265 * LAMP_R * LAMP_R;
-  return albedo / 3.14159265 * LAMP_COLOR * cosS * (area * cosL / dist2);
+  let area = 4.0 * 3.14159265 * light.radius * light.radius;
+  return albedo / 3.14159265 * light.color * cosS * (area * cosL / dist2);
 }
 
 fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
@@ -312,7 +319,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     // Materials: 0 diffuse, 1 mirror, 2 glass, 3 emissive.
     var albedo = 0.6 + 0.4 * abs(n);
     if (primary.material == 3u) {
-      color = vec3f(4.0, 3.7, 3.2);
+      color = lights[LAMP_INDEX].color;
     } else if ((camera.flags & 1u) != 0u && primary.material == 2u) {
       let cosT = max(dot(-dir, n), 0.0);
       let fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
@@ -321,7 +328,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let rhit = traceClosest(rorigin, rdir);
       var refl = skyColor(rdir);
       if (rhit.found && rhit.material == 3u) {
-        refl = vec3f(4.0, 3.7, 3.2);
+        refl = lights[LAMP_INDEX].color;
       } else if (rhit.found) {
         let rn = normalize(rhit.normal);
         var rdiff = max(dot(rn, l), 0.0);
@@ -343,7 +350,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
             let outOrigin = inOrigin + tin * exit.t + tout * 0.002;
             let thit = traceClosest(outOrigin, tout);
             if (thit.found && thit.material == 3u) {
-              trans = vec3f(4.0, 3.7, 3.2);
+              trans = lights[LAMP_INDEX].color;
             } else if (thit.found) {
               let tn = normalize(thit.normal);
               var tdiff = max(dot(tn, l), 0.0);
@@ -373,7 +380,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let bounce = traceClosest(bounceOrigin, bounceDir);
       var indirect = skyColor(bounceDir) * 0.25;
       if (bounce.found && bounce.material == 3u) {
-        indirect = vec3f(4.0, 3.7, 3.2);
+        indirect = lights[LAMP_INDEX].color;
       }
       if (bounce.found && bounce.material != 3u) {
         let bn = normalize(bounce.normal);
@@ -386,7 +393,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       }
       let lampU1 = hash01(gid.xy, camera.frame * 4u + 4u);
       let lampU2 = hash01(gid.xy, camera.frame * 4u + 5u);
-      let lampE = lampSample(hitPos, n, lampU1, lampU2, albedo);
+      let lampE = lampSample(lights[LAMP_INDEX], hitPos, n, lampU1, lampU2, albedo);
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
       if (primary.material == 1u) {
         let rdir = reflect(dir, n);
@@ -394,7 +401,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
         let rhit = traceClosest(rorigin, rdir);
         var refl = skyColor(rdir);
         if (rhit.found && rhit.material == 3u) {
-          refl = vec3f(4.0, 3.7, 3.2);
+          refl = lights[LAMP_INDEX].color;
         } else if (rhit.found) {
           let rn = normalize(rhit.normal);
           var rdiff = max(dot(rn, l), 0.0);
