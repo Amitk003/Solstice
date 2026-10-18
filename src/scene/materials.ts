@@ -25,6 +25,7 @@ export const MAT_MIRROR = 1;
 export const MAT_GLASS = 2;
 export const MAT_LAMP = 3;
 export const MAT_FILL = 4;
+export const MAT_GEM = 5;
 
 export const MATERIALS: Material[] = [
   {
@@ -65,6 +66,14 @@ export const MATERIALS: Material[] = [
     roughness: 1.0,
     ior: 1.0,
     emission: 1.0,
+    absorption: [0.0, 0.0, 0.0],
+  },
+  {
+    kind: MaterialKind.Mirror,
+    baseColor: [0.95, 0.78, 0.4],
+    roughness: 0.25,
+    ior: 1.0,
+    emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
   },
 ];

@@ -1,5 +1,8 @@
 import { FILL_LIGHT, LAMP_LIGHT } from './lights';
-import { MAT_FILL, MAT_FLOOR, MAT_GLASS, MAT_LAMP, MAT_MIRROR } from './materials';
+import { MAT_FILL, MAT_FLOOR, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR } from './materials';
+import { faceNormal } from './geometry';
+import { objToTriangles } from './obj';
+import icosahedronSource from './assets/icosahedron.obj?raw';
 
 export interface TriangleData {
   v0: [number, number, number];
@@ -9,24 +12,6 @@ export interface TriangleData {
   n1: [number, number, number];
   n2: [number, number, number];
   m: number; // index into MATERIALS
-}
-
-function faceNormal(
-  v0: [number, number, number],
-  v1: [number, number, number],
-  v2: [number, number, number],
-): [number, number, number] {
-  const e1x = v1[0] - v0[0];
-  const e1y = v1[1] - v0[1];
-  const e1z = v1[2] - v0[2];
-  const e2x = v2[0] - v0[0];
-  const e2y = v2[1] - v0[1];
-  const e2z = v2[2] - v0[2];
-  const nx = e1y * e2z - e1z * e2y;
-  const ny = e1z * e2x - e1x * e2z;
-  const nz = e1x * e2y - e1y * e2x;
-  const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-  return [nx / len, ny / len, nz / len];
 }
 
 function withFaceNormals(
@@ -49,6 +34,10 @@ export function makeTriangles(): TriangleData[] {
     ...makeSphereTriangles(),
     ...makeSphereTriangles(LAMP_LIGHT.position, LAMP_LIGHT.radius, 10, 8, MAT_LAMP),
     ...makeSphereTriangles(FILL_LIGHT.position, FILL_LIGHT.radius, 10, 8, MAT_FILL),
+    ...objToTriangles(icosahedronSource, MAT_GEM, {
+      scale: 0.7,
+      offset: [-1.9, -0.8, 1.1],
+    }),
   ];
 }
 

@@ -10,6 +10,7 @@ instead of by triangle number ranges.
 - 2: glass (sphere)
 - 3: emissive (warm lamp)
 - 4: emissive (cool fill lamp)
+- 5: mirror (loaded gem mesh)
 
 ## What changed
 
