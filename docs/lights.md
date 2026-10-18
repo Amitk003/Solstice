@@ -34,6 +34,5 @@ storage buffer rules want.
 
 ## Limits
 
-- Only the first light is used by the shading code.
 - The sun (directional light) still lives in the camera uniforms. Moving
   it into the light buffer comes later if we want one light list.
