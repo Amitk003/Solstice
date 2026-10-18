@@ -13,6 +13,8 @@ export interface Camera {
   radius: number;
   azimuth: number;
   elevation: number;
+  aperture: number;
+  focusDistance: number;
 }
 
 export function createCamera(): Camera {
@@ -29,6 +31,8 @@ export function createCamera(): Camera {
     radius: 4,
     azimuth: 0.6,
     elevation: 0.5,
+    aperture: 0.04,
+    focusDistance: 4,
   };
   updateCamera(camera, 1);
   return camera;
@@ -48,6 +52,12 @@ export function updateCamera(camera: Camera, aspect: number): void {
   const proj = mat4.perspective(camera.fovYRadians, aspect, camera.near, camera.far);
   const viewProj = mat4.multiply(proj, view);
   mat4.inverse(viewProj, camera.invViewProj);
+
+  // Focus on the orbit target so the center of the scene stays sharp.
+  const fx = camera.eye[0] - tx;
+  const fy = camera.eye[1] - ty;
+  const fz = camera.eye[2] - tz;
+  camera.focusDistance = Math.sqrt(fx * fx + fy * fy + fz * fz);
 }
 
 export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation: number): void {
@@ -63,7 +73,7 @@ export function cameraUniformData(
 ): Float32Array {
   updateCamera(camera, aspect);
   const light = vec3.normalize(camera.lightDir);
-  const data = new Float32Array(28); // mat4 + eye + pad + light + pad + frame + pad
+  const data = new Float32Array(28); // mat4 + eye + pad + light + pad + frame + flags + aperture + focus
   data.set(camera.invViewProj, 0);
   data[16] = camera.eye[0] ?? 0;
   data[17] = camera.eye[1] ?? 0;
@@ -75,7 +85,7 @@ export function cameraUniformData(
   data[23] = 0; // padding
   new Uint32Array(data.buffer)[24] = frame;
   new Uint32Array(data.buffer)[25] = flags;
-  data[26] = 0;
-  data[27] = 0;
+  data[26] = camera.aperture;
+  data[27] = camera.focusDistance;
   return data;
 }

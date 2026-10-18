@@ -25,6 +25,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const apertureRange = document.querySelector<HTMLInputElement>('#apertureRange');
+    if (apertureRange) {
+      apertureRange.addEventListener('input', () => {
+        context.setAperture(Number(apertureRange.value));
+      });
+    }
+
     const modeNames = ['shaded', 'normal', 'depth'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {
