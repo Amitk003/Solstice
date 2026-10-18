@@ -18,6 +18,7 @@ export interface RenderContext {
   setBounceEnabled: (enabled: boolean) => void;
   setResolutionScale: (scale: number) => void;
   setViewMode: (mode: number) => void;
+  setAperture: (value: number) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -285,6 +286,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         viewMode = clamped;
         frameCount = 0;
       }
+    },
+    setAperture: (value: number) => {
+      camera.aperture = Math.max(0, value);
+      frameCount = 0;
     },
   };
 }
