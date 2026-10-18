@@ -8,6 +8,10 @@ struct Camera {
   flags: u32,
   aperture: f32,
   focusDistance: f32,
+  sunSize: f32,
+  _pad3: f32,
+  _pad4: f32,
+  _pad5: f32,
 }
 
 struct Triangle {

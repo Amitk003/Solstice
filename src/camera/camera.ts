@@ -15,6 +15,7 @@ export interface Camera {
   elevation: number;
   aperture: number;
   focusDistance: number;
+  sunSize: number;
 }
 
 export function createCamera(): Camera {
@@ -33,6 +34,7 @@ export function createCamera(): Camera {
     elevation: 0.5,
     aperture: 0.04,
     focusDistance: 4,
+    sunSize: 0.05,
   };
   updateCamera(camera, 1);
   return camera;
@@ -73,7 +75,7 @@ export function cameraUniformData(
 ): Float32Array {
   updateCamera(camera, aspect);
   const light = vec3.normalize(camera.lightDir);
-  const data = new Float32Array(28); // mat4 + eye + pad + light + pad + frame + flags + aperture + focus
+  const data = new Float32Array(32); // mat4 + eye + pad + light + pad + frame + flags + aperture + focus + sun size + pads
   data.set(camera.invViewProj, 0);
   data[16] = camera.eye[0] ?? 0;
   data[17] = camera.eye[1] ?? 0;
@@ -87,5 +89,9 @@ export function cameraUniformData(
   new Uint32Array(data.buffer)[25] = flags;
   data[26] = camera.aperture;
   data[27] = camera.focusDistance;
+  data[28] = camera.sunSize;
+  data[29] = 0;
+  data[30] = 0;
+  data[31] = 0;
   return data;
 }

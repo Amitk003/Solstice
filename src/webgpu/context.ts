@@ -78,7 +78,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     canvas.style.cursor = 'grab';
   });
   const uniformBuffer = device.createBuffer({
-    size: 112,
+    size: 128,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   let frameCount = 0;
