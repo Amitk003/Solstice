@@ -7,16 +7,24 @@ export interface SphereLight {
   color: [number, number, number];
 }
 
-// The lamp is the single emissive sphere above the scene. Its geometry is
-// generated from these values so the mesh and the light never drift apart.
+// The warm key lamp above the scene. Its geometry is generated from these
+// values so the mesh and the light never drift apart.
 export const LAMP_LIGHT: SphereLight = {
   position: [0.4, 2.3, 1.6],
   radius: 0.22,
   color: [4.0, 3.7, 3.2],
 };
 
+// A cooler fill lamp on the other side. Two lights make the shading read
+// as room light instead of a single source.
+export const FILL_LIGHT: SphereLight = {
+  position: [-2.2, 1.2, -1.0],
+  radius: 0.18,
+  color: [1.4, 1.8, 3.0],
+};
+
 export function defaultLights(): SphereLight[] {
-  return [LAMP_LIGHT];
+  return [LAMP_LIGHT, FILL_LIGHT];
 }
 
 // Layout must match struct Light in bvh.wgsl: position vec3f + radius f32,
