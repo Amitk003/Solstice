@@ -221,9 +221,20 @@ fn hash01(pixel: vec2u, salt: u32) -> f32 {
   return f32(s) / 4294967295.0;
 }
 
+// Procedural sky. It has a ground below the horizon, a gradient above, and
+// a soft glow around the sun direction so the background points at the
+// light. Used for ray misses, so it lights the scene indirectly too.
 fn skyColor(dir: vec3f) -> vec3f {
-  let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-  return 1.5 * mix(vec3f(0.6, 0.7, 0.9), vec3f(0.1, 0.2, 0.4), t);
+  let horizon = vec3f(0.55, 0.7, 0.95);
+  let zenith = vec3f(0.12, 0.22, 0.5);
+  let groundCol = vec3f(0.16, 0.14, 0.12);
+  let sky = mix(horizon, zenith, clamp(dir.y, 0.0, 1.0));
+  let blend = smoothstep(-0.05, 0.05, dir.y);
+  var color = mix(groundCol, sky, blend);
+  let sunDir = normalize(camera.lightDir);
+  let glow = pow(clamp(dot(dir, sunDir), 0.0, 1.0), 8.0);
+  color = color + vec3f(2.0, 1.6, 1.1) * glow * 0.6;
+  return 1.5 * color;
 }
 
 // Material kinds must match MaterialKind in materials.ts.
