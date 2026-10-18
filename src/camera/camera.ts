@@ -16,6 +16,7 @@ export interface Camera {
   aperture: number;
   focusDistance: number;
   sunSize: number;
+  skyIntensity: number;
 }
 
 export function createCamera(): Camera {
@@ -35,6 +36,7 @@ export function createCamera(): Camera {
     aperture: 0.04,
     focusDistance: 4,
     sunSize: 0.05,
+    skyIntensity: 1,
   };
   updateCamera(camera, 1);
   return camera;
@@ -90,7 +92,7 @@ export function cameraUniformData(
   data[26] = camera.aperture;
   data[27] = camera.focusDistance;
   data[28] = camera.sunSize;
-  data[29] = 0;
+  data[29] = camera.skyIntensity;
   data[30] = 0;
   data[31] = 0;
   return data;
