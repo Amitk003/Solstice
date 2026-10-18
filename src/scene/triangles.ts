@@ -1,6 +1,8 @@
 import { FILL_LIGHT, LAMP_LIGHT } from './lights';
-import { MAT_FILL, MAT_FLOOR, MAT_GLASS, MAT_LAMP, MAT_MIRROR } from './materials';
+import { MAT_FILL, MAT_FLOOR, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR } from './materials';
 import { faceNormal } from './geometry';
+import { objToTriangles } from './obj';
+import icosahedronSource from './assets/icosahedron.obj?raw';
 
 export interface TriangleData {
   v0: [number, number, number];
@@ -32,6 +34,10 @@ export function makeTriangles(): TriangleData[] {
     ...makeSphereTriangles(),
     ...makeSphereTriangles(LAMP_LIGHT.position, LAMP_LIGHT.radius, 10, 8, MAT_LAMP),
     ...makeSphereTriangles(FILL_LIGHT.position, FILL_LIGHT.radius, 10, 8, MAT_FILL),
+    ...objToTriangles(icosahedronSource, MAT_GEM, {
+      scale: 0.7,
+      offset: [-1.9, -0.8, 1.1],
+    }),
   ];
 }
 
