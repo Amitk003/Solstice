@@ -20,6 +20,7 @@ export interface RenderContext {
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
   setSunSize: (value: number) => void;
+  setSkyIntensity: (value: number) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -294,6 +295,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);
+      frameCount = 0;
+    },
+    setSkyIntensity: (value: number) => {
+      camera.skyIntensity = Math.max(0, value);
       frameCount = 0;
     },
   };

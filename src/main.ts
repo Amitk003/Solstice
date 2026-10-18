@@ -39,6 +39,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const skyRange = document.querySelector<HTMLInputElement>('#skyRange');
+    if (skyRange) {
+      skyRange.addEventListener('input', () => {
+        context.setSkyIntensity(Number(skyRange.value));
+      });
+    }
+
     const modeNames = ['shaded', 'normal', 'depth'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {

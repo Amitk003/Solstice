@@ -9,7 +9,7 @@ struct Camera {
   aperture: f32,
   focusDistance: f32,
   sunSize: f32,
-  _pad3: f32,
+  skyIntensity: f32,
   _pad4: f32,
   _pad5: f32,
 }
@@ -234,7 +234,7 @@ fn skyColor(dir: vec3f) -> vec3f {
   let sunDir = normalize(camera.lightDir);
   let glow = pow(clamp(dot(dir, sunDir), 0.0, 1.0), 8.0);
   color = color + vec3f(2.0, 1.6, 1.1) * glow * 0.6;
-  return 1.5 * color;
+  return 1.5 * camera.skyIntensity * color;
 }
 
 // Material kinds must match MaterialKind in materials.ts.
