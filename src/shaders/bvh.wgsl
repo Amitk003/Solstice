@@ -319,6 +319,123 @@ fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   return 1.0 - (blocked / 4.0) * 0.7;
 }
 
+// Maximum number of bounces before the loop stops. Russian roulette ends
+// most paths much sooner.
+const MAX_BOUNCES = 5u;
+
+// Follow one path from the camera into the scene. Gathers direct light from
+// the sphere lights and the sun at every vertex it lands on, adds emission
+// when it reaches a lamp, and continues through diffuse, mirror, and glass
+// surfaces with a running throughput. Russian roulette kills dim paths so a
+// few bright ones carry the image.
+fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
+  var origin = startOrigin;
+  var dir = startDir;
+  var throughput = vec3f(1.0);
+  var radiance = vec3f(0.0);
+  var medium = vec3f(0.0);
+  var inside = false;
+
+  let sun = normalize(camera.lightDir);
+  let bounceOn = (camera.flags & 1u) != 0u;
+
+  for (var depth = 0u; depth < MAX_BOUNCES; depth = depth + 1u) {
+    let hit = traceClosest(origin, dir);
+    if (!hit.found) {
+      radiance = radiance + throughput * skyColor(dir) * exp(-medium * 40.0);
+      break;
+    }
+
+    // Beer-Lambert absorption for the segment traveled inside a medium.
+    if (inside) {
+      throughput = throughput * exp(-medium * hit.t);
+    }
+
+    let n = normalize(hit.normal);
+    let hitPos = origin + dir * hit.t + n * 0.001;
+    let mat = materials[hit.material];
+
+    if (isEmissive(hit.material)) {
+      radiance = radiance + throughput * emissiveColor(hit.material);
+      break;
+    }
+
+    if (mat.kind == KIND_GLASS && bounceOn) {
+      // Specular glass. Pick reflection or refraction with Schlick weight.
+      let cosT = max(dot(-dir, n), 0.0);
+      let f0 = pow((1.0 - mat.ior) / (1.0 + mat.ior), 2.0);
+      let fres = f0 + (1.0 - f0) * pow(1.0 - cosT, 5.0);
+      let eta = select(1.0 / mat.ior, mat.ior, inside);
+      let tin = refract(dir, n, eta);
+      let pick = hash01(gid, camera.frame * 256u + depth * 8u + 40u);
+      if (pick < fres || dot(tin, tin) < 0.000001) {
+        dir = reflect(dir, n);
+      } else {
+        dir = tin;
+        inside = !inside;
+        medium = mat.absorption;
+      }
+      origin = hitPos + dir * 0.002;
+      throughput = throughput * mat.baseColor;
+      continue;
+    }
+
+    // Diffuse preview for glass when the bounce toggle is off. Falls through
+    // to the direct lighting below.
+
+    var diffuse = max(dot(n, sun), 0.0);
+    if (diffuse > 0.0 && isOccluded(hitPos, sun, 1000000.0)) {
+      diffuse = 0.0;
+    }
+    radiance = radiance + throughput * mat.baseColor * (0.05 + 0.95 * diffuse) * 1.6 * 0.75;
+
+    if (!bounceOn) {
+      break;
+    }
+
+    let lightCount = arrayLength(&lights);
+    for (var li = 0u; li < lightCount; li = li + 1u) {
+      let lu1 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 1u);
+      let lu2 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 2u);
+      radiance = radiance + throughput * sampleSphereLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor);
+    }
+
+    if (mat.kind == KIND_MIRROR) {
+      let u1 = hash01(gid, camera.frame * 256u + depth * 8u + 4u);
+      let u2 = hash01(gid, camera.frame * 256u + depth * 8u + 5u);
+      let h = importanceSampleGGX(u1, u2, mat.roughness, n);
+      var rdir = reflect(dir, h);
+      if (dot(rdir, n) <= 0.0) {
+        rdir = reflect(dir, n);
+      }
+      let cosTheta = max(dot(-dir, n), 0.0);
+      let f0v = mat.baseColor;
+      let fres = f0v + (vec3f(1.0) - f0v) * pow(1.0 - cosTheta, 5.0);
+      dir = rdir;
+      origin = hitPos + n * 0.001;
+      throughput = throughput * fres;
+    } else {
+      let u1 = hash01(gid, camera.frame * 256u + depth * 8u + 6u);
+      let u2 = hash01(gid, camera.frame * 256u + depth * 8u + 7u);
+      dir = cosineHemisphere(n, u1, u2);
+      origin = hitPos + n * 0.001;
+      throughput = throughput * mat.baseColor;
+    }
+
+    // Russian roulette. Kill dim paths, boost the survivors to stay unbiased.
+    if (depth >= 2u) {
+      let q = clamp(max(throughput.x, max(throughput.y, throughput.z)), 0.02, 1.0);
+      let rr = hash01(gid, camera.frame * 256u + depth * 8u + 3u);
+      if (rr > q) {
+        break;
+      }
+      throughput = throughput / q;
+    }
+  }
+
+  return radiance;
+}
+
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
   let dims = textureDimensions(outputTexture);
@@ -371,131 +488,8 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     } else {
       color = vec3f(0.0);
     }
-  } else if (primary.found) {
-    let n = normalize(primary.normal);
-    let l = normalize(camera.lightDir);
-    let closestT = primary.t;
-    let hitPos = rayOrigin + dir * closestT + n * 0.001;
-    var diffuse = max(dot(n, l), 0.0);
-    if (diffuse > 0.0 && isOccluded(hitPos, l, 1000000.0)) {
-      diffuse = 0.0;
-    }
-    let mat = materials[primary.material];
-    var albedo = mat.baseColor;
-    if (mat.kind == KIND_EMISSIVE) {
-      color = emissiveColor(primary.material);
-    } else if ((camera.flags & 1u) != 0u && mat.kind == KIND_GLASS) {
-      let cosT = max(dot(-dir, n), 0.0);
-      let fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
-      let rdir = reflect(dir, n);
-      let rorigin = hitPos + n * 0.001;
-      let rhit = traceClosest(rorigin, rdir);
-      var refl = skyColor(rdir);
-      if (rhit.found && isEmissive(rhit.material)) {
-        refl = emissiveColor(rhit.material);
-      } else if (rhit.found) {
-        let rn = normalize(rhit.normal);
-        var rdiff = max(dot(rn, l), 0.0);
-        let rpos = rorigin + rdir * rhit.t + rn * 0.001;
-        if (rdiff > 0.0 && isOccluded(rpos, l, 1000000.0)) {
-          rdiff = 0.0;
-        }
-        refl = vec3f(0.7) * rdiff + skyColor(rn) * 0.25;
-      }
-      var trans = skyColor(dir) * 0.6;
-      let tin = refract(dir, n, 1.0 / mat.ior);
-      if (dot(tin, tin) > 0.000001) {
-        let inOrigin = hitPos - n * 0.002;
-        let exit = traceClosest(inOrigin, tin);
-        if (exit.found) {
-          let en = normalize(exit.normal);
-          let tout = refract(tin, en, mat.ior);
-          if (dot(tout, tout) > 0.000001) {
-            let outOrigin = inOrigin + tin * exit.t + tout * 0.002;
-            let thit = traceClosest(outOrigin, tout);
-            if (thit.found && isEmissive(thit.material)) {
-              trans = emissiveColor(thit.material);
-            } else if (thit.found) {
-              let tn = normalize(thit.normal);
-              var tdiff = max(dot(tn, l), 0.0);
-              let tpos = outOrigin + tout * thit.t + tn * 0.001;
-              if (tdiff > 0.0 && isOccluded(tpos, l, 1000000.0)) {
-                tdiff = 0.0;
-              }
-              trans = vec3f(0.75) * tdiff + skyColor(tn) * 0.25;
-            } else {
-              trans = skyColor(tout);
-            }
-            trans = trans * exp(-mat.absorption * exit.t);
-          } else {
-            trans = refl;
-          }
-        } else {
-          trans = skyColor(tin);
-        }
-      }
-      color = mix(trans, refl, fres) + vec3f(0.02);
-    }
-    if ((camera.flags & 1u) != 0u && mat.kind < KIND_GLASS) {
-      let u1 = hash01(gid.xy, camera.frame * 4u + 2u);
-      let u2 = hash01(gid.xy, camera.frame * 4u + 3u);
-      let bounceDir = cosineHemisphere(n, u1, u2);
-      let bounceOrigin = hitPos + n * 0.001;
-      let bounce = traceClosest(bounceOrigin, bounceDir);
-      var indirect = skyColor(bounceDir) * 0.25;
-      if (bounce.found && isEmissive(bounce.material)) {
-        indirect = emissiveColor(bounce.material);
-      }
-      if (bounce.found && !isEmissive(bounce.material)) {
-        let bn = normalize(bounce.normal);
-        var bouncediff = max(dot(bn, l), 0.0);
-        let bouncePos = bounceOrigin + bounceDir * bounce.t + bn * 0.001;
-        if (bouncediff > 0.0 && isOccluded(bouncePos, l, 1000000.0)) {
-          bouncediff = 0.0;
-        }
-        indirect = (vec3f(0.55) * bouncediff + skyColor(bn) * 0.15) * 0.6;
-      }
-      var lightSum = vec3f(0.0);
-      let lightCount = arrayLength(&lights);
-      for (var li = 0u; li < lightCount; li = li + 1u) {
-        let lu1 = hash01(gid.xy, camera.frame * 64u + li * 2u + 20u);
-        let lu2 = hash01(gid.xy, camera.frame * 64u + li * 2u + 21u);
-        lightSum = lightSum + sampleSphereLight(lights[li], hitPos, n, lu1, lu2, albedo);
-      }
-      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lightSum + vec3f(0.02);
-      if (mat.kind == KIND_MIRROR) {
-        let u1 = hash01(gid.xy, camera.frame * 4u + 8u);
-        let u2 = hash01(gid.xy, camera.frame * 4u + 9u);
-        let h = importanceSampleGGX(u1, u2, mat.roughness, n);
-        var rdir = reflect(dir, h);
-        if (dot(rdir, n) <= 0.0) {
-          rdir = reflect(dir, n);
-        }
-        let rorigin = hitPos + n * 0.001;
-        let rhit = traceClosest(rorigin, rdir);
-        var refl = skyColor(rdir);
-        if (rhit.found && isEmissive(rhit.material)) {
-          refl = emissiveColor(rhit.material);
-        } else if (rhit.found) {
-          let rn = normalize(rhit.normal);
-          var rdiff = max(dot(rn, l), 0.0);
-          let rpos = rorigin + rdir * rhit.t + rn * 0.001;
-          if (rdiff > 0.0 && isOccluded(rpos, l, 1000000.0)) {
-            rdiff = 0.0;
-          }
-          refl = vec3f(0.6) * rdiff + skyColor(rn) * 0.2;
-        }
-        let cosTheta = max(dot(-dir, n), 0.0);
-        let f0 = mat.baseColor;
-        let fresnel = f0 + (vec3f(1.0) - f0) * pow(1.0 - cosTheta, 5.0);
-        color = mix(color, refl * f0 + color * 0.15, fresnel);
-      }
-    } else if (mat.kind != KIND_EMISSIVE) {
-      let skyFill = skyColor(n) * 0.12;
-      color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + skyFill * albedo + vec3f(0.02);
-    }
   } else {
-    color = skyColor(dir);
+    color = tracePath(rayOrigin, dir, gid.xy);
   }
   let idx = gid.y * dims.x + gid.x;
   let n = f32(camera.frame + 1u);
