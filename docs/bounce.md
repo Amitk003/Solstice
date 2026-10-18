@@ -11,6 +11,9 @@ from where it lands. Frames blend into the running average.
 - Bounce hits reuse direct sun plus shadow. Misses use sky color.
 - The old fixed occlusion helper is still present but no longer used.
 
+Note: this one bounce step was later replaced by the full path loop in
+docs/path-tracing.md.
+
 ## What you should see
 
 - Hold still and the image starts grainy, then settles.
