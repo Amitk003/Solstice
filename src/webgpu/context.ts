@@ -19,6 +19,7 @@ export interface RenderContext {
   setResolutionScale: (scale: number) => void;
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
+  setSunSize: (value: number) => void;
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -78,7 +79,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     canvas.style.cursor = 'grab';
   });
   const uniformBuffer = device.createBuffer({
-    size: 112,
+    size: 128,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   let frameCount = 0;
@@ -289,6 +290,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setAperture: (value: number) => {
       camera.aperture = Math.max(0, value);
+      frameCount = 0;
+    },
+    setSunSize: (value: number) => {
+      camera.sunSize = Math.max(0, value);
       frameCount = 0;
     },
   };

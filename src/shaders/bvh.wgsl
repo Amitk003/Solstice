@@ -8,6 +8,10 @@ struct Camera {
   flags: u32,
   aperture: f32,
   focusDistance: f32,
+  sunSize: f32,
+  _pad3: f32,
+  _pad4: f32,
+  _pad5: f32,
 }
 
 struct Triangle {
@@ -319,6 +323,23 @@ fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   return 1.0 - (blocked / 4.0) * 0.7;
 }
 
+// Pick a direction inside a small cone around an axis. Used to give the sun
+// an angular size so its shadows are soft. Zero angle returns the axis.
+fn jitterDirection(axis: vec3f, angle: f32, u1: f32, u2: f32) -> vec3f {
+  if (angle <= 0.0) {
+    return axis;
+  }
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(axis.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(axis, helper));
+  let bitangent = normalize(cross(axis, tangent));
+  let r = angle * sqrt(u1);
+  let phi = 6.2831853 * u2;
+  return normalize(axis + tangent * (r * cos(phi)) + bitangent * (r * sin(phi)));
+}
+
 // Maximum number of bounces before the loop stops. Russian roulette ends
 // most paths much sooner.
 const MAX_BOUNCES = 5u;
@@ -383,8 +404,11 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     // Diffuse preview for glass when the bounce toggle is off. Falls through
     // to the direct lighting below.
 
-    var diffuse = max(dot(n, sun), 0.0);
-    if (diffuse > 0.0 && isOccluded(hitPos, sun, 1000000.0)) {
+    let su1 = hash01(gid, camera.frame * 256u + depth * 8u + 50u);
+    let su2 = hash01(gid, camera.frame * 256u + depth * 8u + 51u);
+    let sunDir = jitterDirection(sun, camera.sunSize, su1, su2);
+    var diffuse = max(dot(n, sunDir), 0.0);
+    if (diffuse > 0.0 && isOccluded(hitPos, sunDir, 1000000.0)) {
       diffuse = 0.0;
     }
     radiance = radiance + throughput * mat.baseColor * (0.05 + 0.95 * diffuse) * 1.6 * 0.75;
