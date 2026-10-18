@@ -37,7 +37,7 @@ export const MATERIALS: Material[] = [
   {
     kind: MaterialKind.Mirror,
     baseColor: [0.95, 0.96, 1.0],
-    roughness: 0.05,
+    roughness: 0.12,
     ior: 1.0,
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],

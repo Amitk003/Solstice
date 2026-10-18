@@ -265,6 +265,24 @@ fn lampSample(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: v
   return albedo / 3.14159265 * light.color * cosS * (area * cosL / dist2);
 }
 
+// Draw a half vector from the GGX distribution around n. Roughness spreads
+// it out. Low roughness clusters near n, high roughness spreads widely.
+fn importanceSampleGGX(u1: f32, u2: f32, roughness: f32, n: vec3f) -> vec3f {
+  let a = max(roughness * roughness, 0.0001);
+  let phi = 6.2831853 * u1;
+  let denom = 1.0 + (a * a - 1.0) * u2;
+  let cosTheta = sqrt((1.0 - u2) / denom);
+  let sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let h = tangent * (sinTheta * cos(phi)) + bitangent * (sinTheta * sin(phi)) + n * cosTheta;
+  return normalize(h);
+}
+
 fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
   var helper = vec3f(0.0, 1.0, 0.0);
   if (abs(n.y) > 0.9) {
@@ -445,7 +463,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
       let lampE = lampSample(lights[LAMP_INDEX], hitPos, n, lampU1, lampU2, albedo);
       color = 1.6 * albedo * (0.05 + 0.95 * diffuse) * 0.75 + indirect * albedo + lampE + vec3f(0.02);
       if (mat.kind == KIND_MIRROR) {
-        let rdir = reflect(dir, n);
+        let u1 = hash01(gid.xy, camera.frame * 4u + 8u);
+        let u2 = hash01(gid.xy, camera.frame * 4u + 9u);
+        let h = importanceSampleGGX(u1, u2, mat.roughness, n);
+        var rdir = reflect(dir, h);
+        if (dot(rdir, n) <= 0.0) {
+          rdir = reflect(dir, n);
+        }
         let rorigin = hitPos + n * 0.001;
         let rhit = traceClosest(rorigin, rdir);
         var refl = skyColor(rdir);
@@ -461,8 +485,9 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
           refl = vec3f(0.6) * rdiff + skyColor(rn) * 0.2;
         }
         let cosTheta = max(dot(-dir, n), 0.0);
-        let fresnel = 0.3 + 0.7 * pow(1.0 - cosTheta, 5.0);
-        color = mix(color, refl * mat.baseColor + color * 0.15, fresnel);
+        let f0 = mat.baseColor;
+        let fresnel = f0 + (vec3f(1.0) - f0) * pow(1.0 - cosTheta, 5.0);
+        color = mix(color, refl * f0 + color * 0.15, fresnel);
       }
     } else if (mat.kind != KIND_EMISSIVE) {
       let skyFill = skyColor(n) * 0.12;
