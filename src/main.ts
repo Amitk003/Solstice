@@ -32,6 +32,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const sunRange = document.querySelector<HTMLInputElement>('#sunRange');
+    if (sunRange) {
+      sunRange.addEventListener('input', () => {
+        context.setSunSize(Number(sunRange.value));
+      });
+    }
+
     const modeNames = ['shaded', 'normal', 'depth'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {
