@@ -3,6 +3,7 @@ import blitSource from '../shaders/blit.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
+import { MATERIALS, materialsStorageData } from '../scene/materials';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 
 export interface RenderStats {
@@ -115,6 +116,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   device.queue.writeBuffer(lightsBuffer, 0, lightData);
 
+  const materialData = materialsStorageData(MATERIALS);
+  const materialsBuffer = device.createBuffer({
+    size: materialData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(materialsBuffer, 0, materialData);
+
   const renderPipeline = device.createRenderPipeline({
     layout: 'auto',
     vertex: { module: shaderModuleBlit, entryPoint: 'vs' },
@@ -176,6 +184,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 4, resource: outputTexture.createView() },
         { binding: 5, resource: { buffer: accumBuffer } },
         { binding: 6, resource: { buffer: lightsBuffer } },
+        { binding: 7, resource: { buffer: materialsBuffer } },
       ],
     });
 
