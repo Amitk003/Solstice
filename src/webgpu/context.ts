@@ -751,7 +751,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       }
     },
     setViewMode: (mode: number) => {
-      const clamped = Math.max(0, Math.min(2, Math.floor(mode)));
+      const clamped = Math.max(0, Math.min(3, Math.floor(mode)));
       if (clamped !== viewMode) {
         viewMode = clamped;
         frameCount = 0;

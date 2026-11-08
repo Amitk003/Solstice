@@ -8,11 +8,13 @@ without lighting in the way.
 - 1: shaded image (default)
 - 2: world normals as color
 - 3: depth as gray (near is bright)
+- 4: albedo as color (the material base color, no lighting)
 
 ## What changed
 
 - The quality flags now carry a view mode in bits 1 and 2.
-- The trace kernel outputs normal or depth color for those modes.
+- The trace kernel outputs normal, depth, or albedo color for those
+  modes.
 - Switching modes resets accumulation.
 - The status line names the active mode.
 
