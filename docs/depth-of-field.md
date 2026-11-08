@@ -13,6 +13,8 @@ points behind or in front of it blur. This is the classic thin lens model.
 - The camera basis for the disk comes from the inverse view projection,
   so no extra matrices are needed.
 - A slider in the panel sets the aperture from 0 to 0.2.
+- A Focus slider shifts the plane from the target. See
+  `docs/focus-offset.md`.
 
 ## How to use it
 
@@ -28,7 +30,7 @@ points behind or in front of it blur. This is the classic thin lens model.
 
 ## Limits
 
-- Focus is fixed to the orbit target. Manual focus and a focus pick from
-  the center pixel come later.
+- Focus shifts from the orbit target by a slider. A focus pick from
+  the center pixel comes later.
 - The aperture disk is sampled without importance sampling. That is fine
   for a lens this small.
