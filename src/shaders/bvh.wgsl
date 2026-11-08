@@ -66,12 +66,18 @@ struct SceneInfo {
   instances: array<Instance, MAX_INSTANCES>,
 }
 
-// Layout must match lightsStorageData in lights.ts.
+// Layout must match lightsStorageData in lights.ts. kind selects the
+// shape: 0 is a sphere with radius, 1 is a horizontal rectangle that
+// faces down with half extents halfWidth and halfDepth.
 struct Light {
   position: vec3f,
   radius: f32,
   color: vec3f,
+  kind: f32,
+  halfWidth: f32,
+  halfDepth: f32,
   _pad0: f32,
+  _pad1: f32,
 }
 
 // Layout must match materialsStorageData in materials.ts.
@@ -512,7 +518,7 @@ fn emissiveColor(index: u32) -> vec3f {
   return m.baseColor * m.emission;
 }
 
-fn sampleSphereLight(
+fn sampleAreaLight(
   light: Light,
   hitPos: vec3f,
   n: vec3f,
@@ -522,11 +528,27 @@ fn sampleSphereLight(
   wrap: f32,
   translucency: f32,
 ) -> vec3f {
-  let z = 1.0 - 2.0 * u1;
-  let r = sqrt(max(0.0, 1.0 - z * z));
-  let phi = 6.2831853 * u2;
-  let onSphere = vec3f(r * cos(phi), r * sin(phi), z);
-  let lampPoint = light.position + light.radius * onSphere;
+  var lampPoint: vec3f;
+  var lightNormal: vec3f;
+  var area: f32;
+  if (light.kind > 0.5) {
+    // Horizontal rectangle that faces down. u1 and u2 pick a uniform
+    // point in the unit square.
+    let right = vec3f(1.0, 0.0, 0.0);
+    let fwd = vec3f(0.0, 0.0, 1.0);
+    lampPoint = light.position + right * (u1 * 2.0 - 1.0) * light.halfWidth
+      + fwd * (u2 * 2.0 - 1.0) * light.halfDepth;
+    lightNormal = vec3f(0.0, -1.0, 0.0);
+    area = 4.0 * light.halfWidth * light.halfDepth;
+  } else {
+    let z = 1.0 - 2.0 * u1;
+    let r = sqrt(max(0.0, 1.0 - z * z));
+    let phi = 6.2831853 * u2;
+    let onSphere = vec3f(r * cos(phi), r * sin(phi), z);
+    lampPoint = light.position + light.radius * onSphere;
+    lightNormal = onSphere;
+    area = 4.0 * 3.14159265 * light.radius * light.radius;
+  }
   let toLamp = lampPoint - hitPos;
   let dist2 = dot(toLamp, toLamp);
   let dist = sqrt(dist2);
@@ -540,7 +562,7 @@ fn sampleSphereLight(
   if (cosS <= 0.0 && cosBack <= 0.0) {
     return vec3f(0.0);
   }
-  let cosL = max(dot(onSphere, -ln), 0.0);
+  let cosL = max(dot(lightNormal, -ln), 0.0);
   if (cosL <= 0.0) {
     return vec3f(0.0);
   }
@@ -548,7 +570,6 @@ fn sampleSphereLight(
   if (isOccludedScene(hitPos, ln, dist - 0.01)) {
     directScale = 0.0;
   }
-  let area = 4.0 * 3.14159265 * light.radius * light.radius;
   let weight = area * cosL / dist2;
   return albedo / 3.14159265 * light.color * (cosS * directScale + cosBack) * weight;
 }
@@ -719,7 +740,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     for (var li = 0u; li < lightCount; li = li + 1u) {
       let lu1 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 1u);
       let lu2 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 2u);
-      radiance = radiance + throughput * sampleSphereLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor, wrap, translucency);
+      radiance = radiance + throughput * sampleAreaLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor, wrap, translucency);
     }
 
     if (mat.kind == KIND_SUBSURFACE) {
