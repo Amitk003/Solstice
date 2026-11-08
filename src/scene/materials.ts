@@ -23,6 +23,9 @@ export interface Material {
   // wrapped direct light in the shader and the probability of entering the
   // volume random walk instead of a plain diffuse bounce.
   subsurface: number;
+  // Procedural normal detail strength. 0 keeps the mesh normal. A small
+  // value bends the normal with a world space ripple in the shader.
+  detail: number;
 }
 
 export const MAT_FLOOR = 0;
@@ -42,6 +45,7 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.35,
   },
   {
     kind: MaterialKind.Mirror,
@@ -51,6 +55,7 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.0,
   },
   {
     kind: MaterialKind.Glass,
@@ -60,6 +65,7 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [0.5, 0.18, 0.15],
     subsurface: 0.0,
+    detail: 0.0,
   },
   {
     kind: MaterialKind.Emissive,
@@ -69,6 +75,7 @@ export const MATERIALS: Material[] = [
     emission: 1.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.0,
   },
   {
     kind: MaterialKind.Emissive,
@@ -78,6 +85,7 @@ export const MATERIALS: Material[] = [
     emission: 1.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.0,
   },
   {
     kind: MaterialKind.Mirror,
@@ -87,6 +95,7 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.0,
   },
   {
     // Wax. The absorption vector is the attenuation coefficient of the
@@ -99,12 +108,15 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [1.0, 2.5, 5.0],
     subsurface: 1.0,
+    detail: 0.0,
   },
 ];
 
 // Layout must match struct Material in bvh.wgsl. Twelve floats per material:
 // baseColor vec3 + roughness, absorption vec3 + ior, kind u32 + emission +
-// subsurface + pad. That is 48 bytes, a multiple of 16 for storage buffers.
+// subsurface + detail bits. That is 48 bytes, a multiple of 16 for storage
+// buffers. The last slot stores detail strength as float bits in a u32
+// field, so the shader reads it with a bitcast.
 export function materialsStorageData(materials: Material[]): Float32Array {
   const data = new Float32Array(materials.length * 12);
   const uints = new Uint32Array(data.buffer);
@@ -121,7 +133,7 @@ export function materialsStorageData(materials: Material[]): Float32Array {
     uints[o + 8] = m.kind;
     data[o + 9] = m.emission;
     data[o + 10] = m.subsurface;
-    data[o + 11] = 0;
+    data[o + 11] = m.detail;
     o += 12;
   }
   return data;

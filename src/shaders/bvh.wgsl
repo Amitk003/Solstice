@@ -80,7 +80,9 @@ struct Light {
   _pad1: f32,
 }
 
-// Layout must match materialsStorageData in materials.ts.
+// Layout must match materialsStorageData in materials.ts. The last
+// field holds detail strength as float bits in a u32, so the shader
+// reads it with a bitcast.
 struct Material {
   baseColor: vec3f,
   roughness: f32,
@@ -89,7 +91,7 @@ struct Material {
   kind: u32,
   emission: f32,
   subsurface: f32,
-  _pad1: u32,
+  detail: u32,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
