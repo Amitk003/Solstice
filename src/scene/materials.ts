@@ -60,7 +60,7 @@ export const MATERIALS: Material[] = [
   {
     kind: MaterialKind.Glass,
     baseColor: [1.0, 1.0, 1.0],
-    roughness: 0.05,
+    roughness: 0.3,
     ior: 1.5,
     emission: 0.0,
     absorption: [0.5, 0.18, 0.15],
