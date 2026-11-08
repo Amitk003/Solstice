@@ -53,6 +53,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const sunAngleRange = document.querySelector<HTMLInputElement>('#sunAngleRange');
+    if (sunAngleRange) {
+      sunAngleRange.addEventListener('input', () => {
+        context.setSunAngle(Number(sunAngleRange.value));
+      });
+    }
+
     const skyRange = document.querySelector<HTMLInputElement>('#skyRange');
     if (skyRange) {
       skyRange.addEventListener('input', () => {
