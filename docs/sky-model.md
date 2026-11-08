@@ -12,6 +12,8 @@ a soft glow around the sun direction.
   with the light.
 - The sky is used for ray misses, so it also lights the scene indirectly.
 - A slider in the panel scales the whole sky, from 0 to 2.
+- A Sun angle slider rotates the daylight around the vertical axis.
+  See `docs/sun-angle.md`.
 
 ## What you should see
 

@@ -36,6 +36,7 @@ export interface RenderContext {
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
   setFocusOffset: (value: number) => void;
+  setSunAngle: (azimuthDegrees: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
@@ -123,7 +124,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  // The environment map is static, so it is created once and never resized.
+  // The environment map holds the sun disk, so it is regenerated when
+  // the sun moves. Otherwise it is created once and never resized.
   const envSampler = device.createSampler({
     magFilter: 'linear',
     minFilter: 'linear',
@@ -135,12 +137,17 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     format: 'rgba16float',
     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
   });
-  device.queue.writeTexture(
-    { texture: envTexture, origin: [0, 0, 0] },
-    toHalfFloatData(makeEnvMapData()),
-    { bytesPerRow: ENV_MAP_WIDTH * 8, rowsPerImage: ENV_MAP_HEIGHT },
-    [ENV_MAP_WIDTH, ENV_MAP_HEIGHT, 1],
-  );
+  const writeEnvMap = (sun: [number, number, number]): void => {
+    device.queue.writeTexture(
+      { texture: envTexture, origin: [0, 0, 0] },
+      toHalfFloatData(makeEnvMapData(sun)),
+      { bytesPerRow: ENV_MAP_WIDTH * 8, rowsPerImage: ENV_MAP_HEIGHT },
+      [ENV_MAP_WIDTH, ENV_MAP_HEIGHT, 1],
+    );
+  };
+  writeEnvMap([0.4, 0.8, -0.4]);
+  let envQueued = false;
+  let latestSun: [number, number, number] = [0.4, 0.8, -0.4];
 
   const camera = createCamera();
 
@@ -819,6 +826,34 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       camera.focusOffset = Math.max(-2, Math.min(4, value));
       frameCount = 0;
       historyValid = false;
+    },
+    setSunAngle: (azimuthDegrees: number) => {
+      // Rotate the sun around the vertical axis at a fixed height. The
+      // direct sun comes from the camera light direction, and the
+      // environment map is rebuilt so its disk stays in the same spot.
+      const clamped = Math.max(-180, Math.min(180, azimuthDegrees));
+      const az = (clamped * Math.PI) / 180;
+      const el = (55 * Math.PI) / 180;
+      const sunDir: [number, number, number] = [
+        Math.cos(el) * Math.cos(az),
+        Math.sin(el),
+        Math.cos(el) * Math.sin(az),
+      ];
+      camera.lightDir[0] = sunDir[0];
+      camera.lightDir[1] = sunDir[1];
+      camera.lightDir[2] = sunDir[2];
+      latestSun = sunDir;
+      frameCount = 0;
+      historyValid = false;
+      // Regenerating takes a few milliseconds, so batch rapid slider
+      // moves into one upload per short window.
+      if (!envQueued) {
+        envQueued = true;
+        window.setTimeout(() => {
+          writeEnvMap(latestSun);
+          envQueued = false;
+        }, 120);
+      }
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);
