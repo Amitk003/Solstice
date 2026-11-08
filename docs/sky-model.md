@@ -22,7 +22,7 @@ a soft glow around the sun direction.
 
 ## Limits
 
-- The sky is a simple analytic color. No texture or HDR environment map
-  yet.
-- The sun glow is a visual and indirect term, not a second light. Direct
+- The sky is a procedural HDR environment texture. See
+  `docs/hdr-environment-map.md`.
+- The sun is a visual and indirect term, not a second light. Direct
   sun light still comes from the sun shadow ray.
