@@ -28,6 +28,7 @@ the page and look around.
 - Tone mapper choice: ACES, Reinhard, or linear
 - Frosted glass that blurs with its roughness value
 - Debug views for normals, depth, and albedo
+- Camera preset buttons for saved views
 - Adaptive sampling that skips the path trace once a pixel converges
 - Rectangular panel light for softer key shadows
 - Procedural detail normals for textured flat surfaces, no assets needed
