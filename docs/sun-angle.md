@@ -1,12 +1,14 @@
-# Sun angle
+# Sun angle and height
 
-The sun used to point one fixed way. A Sun angle slider now rotates
-the daylight around the vertical axis.
+The sun used to point one fixed way. Two sliders now move the daylight
+around the sky: a Sun angle slider for the azimuth and a Sun height
+slider for the elevation.
 
 ## How it works
 
-The slider sets the azimuth from -180 to 180 degrees, with the
-elevation fixed at 55 degrees. It moves two things at once:
+The Sun angle slider sets the azimuth from -180 to 180 degrees. The
+Sun height slider sets the elevation from 2 to 89 degrees. Both move
+the same two things at once:
 
 - The direct sun light direction in the camera uniforms, so the
   shadows and the shading follow the slider.
@@ -28,6 +30,7 @@ across the floor and the wax sphere.
 
 ## Limits
 
-- The elevation is fixed at 55 degrees. Only the azimuth moves.
+- Very low elevations (2 degrees) give long glancing light. Very
+  high ones (89 degrees) give flat noon light.
 - The windows in the environment map do not move with the sun.
 - Moving the sun resets the samples and the temporal history.
