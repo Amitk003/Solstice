@@ -9,6 +9,7 @@ export enum MaterialKind {
   Mirror = 1,
   Glass = 2,
   Emissive = 3,
+  Subsurface = 4,
 }
 
 export interface Material {
@@ -18,6 +19,9 @@ export interface Material {
   ior: number;
   emission: number;
   absorption: [number, number, number];
+  // 0 is a plain surface. 1 is a fully scattering surface. Used by the
+  // subsurface shading approximation for wrapped light and backlight glow.
+  subsurface: number;
 }
 
 export const MAT_FLOOR = 0;
@@ -26,6 +30,7 @@ export const MAT_GLASS = 2;
 export const MAT_LAMP = 3;
 export const MAT_FILL = 4;
 export const MAT_GEM = 5;
+export const MAT_WAX = 6;
 
 export const MATERIALS: Material[] = [
   {
@@ -35,6 +40,7 @@ export const MATERIALS: Material[] = [
     ior: 1.0,
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
   },
   {
     kind: MaterialKind.Mirror,
@@ -43,6 +49,7 @@ export const MATERIALS: Material[] = [
     ior: 1.0,
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
   },
   {
     kind: MaterialKind.Glass,
@@ -51,6 +58,7 @@ export const MATERIALS: Material[] = [
     ior: 1.5,
     emission: 0.0,
     absorption: [0.5, 0.18, 0.15],
+    subsurface: 0.0,
   },
   {
     kind: MaterialKind.Emissive,
@@ -59,6 +67,7 @@ export const MATERIALS: Material[] = [
     ior: 1.0,
     emission: 1.0,
     absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
   },
   {
     kind: MaterialKind.Emissive,
@@ -67,6 +76,7 @@ export const MATERIALS: Material[] = [
     ior: 1.0,
     emission: 1.0,
     absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
   },
   {
     kind: MaterialKind.Mirror,
@@ -75,12 +85,22 @@ export const MATERIALS: Material[] = [
     ior: 1.0,
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
+  },
+  {
+    kind: MaterialKind.Subsurface,
+    baseColor: [0.95, 0.62, 0.45],
+    roughness: 0.6,
+    ior: 1.4,
+    emission: 0.0,
+    absorption: [0.0, 0.0, 0.0],
+    subsurface: 1.0,
   },
 ];
 
 // Layout must match struct Material in bvh.wgsl. Twelve floats per material:
 // baseColor vec3 + roughness, absorption vec3 + ior, kind u32 + emission +
-// two pads. That is 48 bytes, a multiple of 16 for storage buffers.
+// subsurface + pad. That is 48 bytes, a multiple of 16 for storage buffers.
 export function materialsStorageData(materials: Material[]): Float32Array {
   const data = new Float32Array(materials.length * 12);
   const uints = new Uint32Array(data.buffer);
@@ -96,7 +116,7 @@ export function materialsStorageData(materials: Material[]): Float32Array {
     data[o + 7] = m.ior;
     uints[o + 8] = m.kind;
     data[o + 9] = m.emission;
-    data[o + 10] = 0;
+    data[o + 10] = m.subsurface;
     data[o + 11] = 0;
     o += 12;
   }

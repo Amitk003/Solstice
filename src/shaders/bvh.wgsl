@@ -80,7 +80,7 @@ struct Material {
   ior: f32,
   kind: u32,
   emission: f32,
-  _pad0: u32,
+  subsurface: f32,
   _pad1: u32,
 }
 
@@ -496,6 +496,7 @@ const KIND_DIFFUSE = 0u;
 const KIND_MIRROR = 1u;
 const KIND_GLASS = 2u;
 const KIND_EMISSIVE = 3u;
+const KIND_SUBSURFACE = 4u;
 
 fn isEmissive(index: u32) -> bool {
   return materials[index].kind == KIND_EMISSIVE;
@@ -506,7 +507,16 @@ fn emissiveColor(index: u32) -> vec3f {
   return m.baseColor * m.emission;
 }
 
-fn sampleSphereLight(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, albedo: vec3f) -> vec3f {
+fn sampleSphereLight(
+  light: Light,
+  hitPos: vec3f,
+  n: vec3f,
+  u1: f32,
+  u2: f32,
+  albedo: vec3f,
+  wrap: f32,
+  translucency: f32,
+) -> vec3f {
   let z = 1.0 - 2.0 * u1;
   let r = sqrt(max(0.0, 1.0 - z * z));
   let phi = 6.2831853 * u2;
@@ -516,19 +526,26 @@ fn sampleSphereLight(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, al
   let dist2 = dot(toLamp, toLamp);
   let dist = sqrt(dist2);
   let ln = toLamp / dist;
-  let cosS = max(dot(n, ln), 0.0);
-  if (cosS <= 0.0) {
+  let rawCos = dot(n, ln);
+  // The wrapped cosine softens the terminator on subsurface surfaces.
+  let cosS = max((rawCos + wrap) / (1.0 + wrap), 0.0);
+  // Light that reaches the back of a thin surface. The normal shadow ray
+  // would hit the object itself, so transmission skips the shadow test.
+  let cosBack = max((-rawCos + wrap) / (1.0 + wrap), 0.0) * translucency;
+  if (cosS <= 0.0 && cosBack <= 0.0) {
     return vec3f(0.0);
   }
   let cosL = max(dot(onSphere, -ln), 0.0);
   if (cosL <= 0.0) {
     return vec3f(0.0);
   }
+  var directScale = 1.0;
   if (isOccludedScene(hitPos, ln, dist - 0.01)) {
-    return vec3f(0.0);
+    directScale = 0.0;
   }
   let area = 4.0 * 3.14159265 * light.radius * light.radius;
-  return albedo / 3.14159265 * light.color * cosS * (area * cosL / dist2);
+  let weight = area * cosL / dist2;
+  return albedo / 3.14159265 * light.color * (cosS * directScale + cosBack) * weight;
 }
 
 // Draw a half vector from the GGX distribution around n. Roughness spreads
@@ -611,9 +628,9 @@ const MAX_BOUNCES = 5u;
 
 // Follow one path from the camera into the scene. Gathers direct light from
 // the sphere lights and the sun at every vertex it lands on, adds emission
-// when it reaches a lamp, and continues through diffuse, mirror, and glass
-// surfaces with a running throughput. Russian roulette kills dim paths so a
-// few bright ones carry the image.
+// when it reaches a lamp, and continues through diffuse, mirror, glass, and
+// subsurface surfaces with a running throughput. Russian roulette kills dim
+// paths so a few bright ones carry the image.
 fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
   var origin = startOrigin;
   var dir = startDir;
@@ -669,14 +686,22 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     // Diffuse preview for glass when the bounce toggle is off. Falls through
     // to the direct lighting below.
 
+    let sss = clamp(mat.subsurface, 0.0, 1.0);
+    let wrap = sss * 0.5;
+    let translucency = sss * 0.4;
+
     let su1 = hash01(gid, camera.frame * 256u + depth * 8u + 50u);
     let su2 = hash01(gid, camera.frame * 256u + depth * 8u + 51u);
     let sunDir = jitterDirection(sun, camera.sunSize, su1, su2);
-    var diffuse = max(dot(n, sunDir), 0.0);
-    if (diffuse > 0.0 && isOccludedScene(hitPos, sunDir, 1000000.0)) {
-      diffuse = 0.0;
+    let sunRaw = dot(n, sunDir);
+    var sunDirect = max((sunRaw + wrap) / (1.0 + wrap), 0.0);
+    if (sunDirect > 0.0 && isOccludedScene(hitPos, sunDir, 1000000.0)) {
+      sunDirect = 0.0;
     }
-    radiance = radiance + throughput * mat.baseColor * (0.05 + 0.95 * diffuse) * 1.6 * 0.75;
+    let sunBack = max((-sunRaw + wrap) / (1.0 + wrap), 0.0) * translucency;
+    let sunScale = 1.6 * 0.75;
+    radiance =
+      radiance + throughput * mat.baseColor * (0.05 + 0.95 * sunDirect + sunBack) * sunScale;
 
     if (!bounceOn) {
       break;
@@ -686,7 +711,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     for (var li = 0u; li < lightCount; li = li + 1u) {
       let lu1 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 1u);
       let lu2 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 2u);
-      radiance = radiance + throughput * sampleSphereLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor);
+      radiance = radiance + throughput * sampleSphereLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor, wrap, translucency);
     }
 
     if (mat.kind == KIND_MIRROR) {
