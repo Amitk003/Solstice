@@ -13,15 +13,17 @@ export interface AreaLight {
   halfDepth: number;
 }
 
-// The warm key lamp above the scene. Its geometry is generated from these
-// values so the mesh and the light never drift apart.
+// The warm key lamp above the scene. It is a horizontal rectangle that
+// faces down. Its geometry is generated from these values so the mesh
+// and the light never drift apart. The color is lower than the old
+// sphere lamp because the panel is larger.
 export const LAMP_LIGHT: AreaLight = {
-  kind: 'sphere',
+  kind: 'rect',
   position: [0.4, 2.3, 1.6],
-  radius: 0.22,
-  color: [4.0, 3.7, 3.2],
-  halfWidth: 0,
-  halfDepth: 0,
+  radius: 0,
+  color: [1.35, 1.25, 1.1],
+  halfWidth: 0.9,
+  halfDepth: 0.55,
 };
 
 // A cooler fill lamp on the other side. Two lights make the shading read

@@ -32,7 +32,7 @@ export function makeTriangles(): TriangleData[] {
     ...makeCubeTriangles(),
     ...makeFloorTriangles(),
     ...makeSphereTriangles(),
-    ...makeSphereTriangles(LAMP_LIGHT.position, LAMP_LIGHT.radius, 10, 8, MAT_LAMP),
+    ...makePanelTriangles(LAMP_LIGHT.position, LAMP_LIGHT.halfWidth, LAMP_LIGHT.halfDepth, MAT_LAMP),
     ...makeSphereTriangles(FILL_LIGHT.position, FILL_LIGHT.radius, 10, 8, MAT_FILL),
     ...objToTriangles(icosahedronSource, MAT_GEM, {
       scale: 0.7,
@@ -147,6 +147,25 @@ export function makeSphereTriangles(
     }
   }
   return tris;
+}
+
+// One horizontal quad that faces down. It is the visible panel for the
+// rectangular key light, so its bounds always match the light extents.
+export function makePanelTriangles(
+  center: [number, number, number],
+  halfWidth: number,
+  halfDepth: number,
+  material: number = MAT_LAMP,
+): TriangleData[] {
+  const [cx, cy, cz] = center;
+  const a: [number, number, number] = [cx - halfWidth, cy, cz - halfDepth];
+  const b: [number, number, number] = [cx + halfWidth, cy, cz - halfDepth];
+  const c: [number, number, number] = [cx + halfWidth, cy, cz + halfDepth];
+  const d: [number, number, number] = [cx - halfWidth, cy, cz + halfDepth];
+  return [
+    withFaceNormals(a, b, c, material),
+    withFaceNormals(a, c, d, material),
+  ];
 }
 
 function ensureOutward(t: TriangleData, center: [number, number, number] = [0, 0, 0]): TriangleData {
