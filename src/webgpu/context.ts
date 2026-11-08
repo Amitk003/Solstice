@@ -595,11 +595,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     const parity = temporalParity;
     const modeIndex = denoiseEnabled ? 1 : 0;
     const temporalGroup = temporalBindGroups[modeIndex]?.[parity];
+    displayedParity = parity;
     const activeBindGroup = activeRenderBindGroup();
     if (!activeBindGroup || !temporalGroup) {
       return;
     }
-    displayedParity = parity;
 
     const useHistory = historyValid;
     const encoder = device.createCommandEncoder();
