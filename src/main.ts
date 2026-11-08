@@ -18,6 +18,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const denoiseToggle = document.querySelector<HTMLInputElement>('#denoiseToggle');
+    if (denoiseToggle) {
+      denoiseToggle.addEventListener('change', () => {
+        context.setDenoiseEnabled(denoiseToggle.checked);
+      });
+    }
+
     const resSelect = document.querySelector<HTMLSelectElement>('#resSelect');
     if (resSelect) {
       resSelect.addEventListener('change', () => {
