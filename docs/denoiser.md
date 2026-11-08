@@ -32,13 +32,11 @@ A neighbour is trusted based on three things:
 The three runs ping pong between two textures. The last run writes the
 texture the display samples.
 
-## Why there is no reprojection
+## Temporal history
 
-SVGF normally projects the previous frame through motion vectors so the
-history follows moving pixels. Here the camera resets the sample count
-when it moves, so the history is only valid while the camera is still.
-That makes the running average the temporal part, with no motion
-vectors and no history clamping needed.
+The filter itself only looks at the current frame. A separate temporal
+pass reprojects the previous filtered frame with motion vectors and
+blends it in. See `docs/temporal-reprojection.md`.
 
 ## Toggle
 
@@ -48,7 +46,6 @@ the accumulated samples.
 
 ## Limits
 
-- No motion vectors or history reprojection.
 - No albedo or specular demodulation. The filter works on full radiance.
 - One thread per pixel with 25 taps per pass. Very high resolutions can
   cost a few milliseconds. Turn the toggle off if you need the speed.
