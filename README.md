@@ -19,6 +19,7 @@ the page and look around.
 - WebGPU compute pipelines for ray generation, tracing, shading, and display
 - GPU-built BVH (morton codes + bitonic sort + level built tree) for fast tracing
 - Edge aware a-trous denoiser guided by normals, depth, and variance
+- Temporal reprojection with motion vectors, history clamping, and disocclusion tests
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
 - One click PNG export of the tone mapped frame

@@ -1,6 +1,7 @@
 import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import denoiseSource from '../shaders/denoise.wgsl?raw';
+import temporalSource from '../shaders/temporal.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
@@ -76,6 +77,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   const shaderModuleTrace = device.createShaderModule({ code: traceSource });
   const shaderModuleBlit = device.createShaderModule({ code: blitSource });
   const shaderModuleDenoise = device.createShaderModule({ code: denoiseSource });
+  const shaderModuleTemporal = device.createShaderModule({ code: temporalSource });
 
   const computePipeline = device.createComputePipeline({
     layout: 'auto',
@@ -85,6 +87,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   const denoisePipeline = device.createComputePipeline({
     layout: 'auto',
     compute: { module: shaderModuleDenoise, entryPoint: 'main' },
+  });
+
+  const temporalPipeline = device.createComputePipeline({
+    layout: 'auto',
+    compute: { module: shaderModuleTemporal, entryPoint: 'main' },
   });
 
   // One small uniform buffer per a-trous pass so each pass can use its own
@@ -100,6 +107,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   const stepBuffer1 = makeStepBuffer(1);
   const stepBuffer2 = makeStepBuffer(2);
   const stepBuffer4 = makeStepBuffer(4);
+
+  // One flag: whether the previous frame is safe to reuse. The temporal pass
+  // ignores history on the first frame and after a resize or look change.
+  const temporalParamsBuffer = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
 
   const camera = createCamera();
 
@@ -130,7 +144,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     canvas.style.cursor = 'grab';
   });
   const uniformBuffer = device.createBuffer({
-    size: 128,
+    size: 192,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   let frameCount = 0;
@@ -140,6 +154,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let viewMode = 0;
   let fps = 0;
   let lastTime = 0;
+  // The trace accumulation resets on a camera move, but the temporal history
+  // survives so the reprojected image stays clean. This flag is cleared after
+  // a resize or a lighting change, where the old image is no longer valid.
+  let historyValid = false;
+  let temporalParity = 0;
+  let displayedParity = 0;
 
   // Static scene plus a unit gem mesh that the instance TLAS reuses. All
   // meshes share one triangle buffer, one node buffer, and one index buffer
@@ -258,21 +278,29 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
 
   let outputTexture: GPUTexture | null = null;
+  let motionTexture: GPUTexture | null = null;
+  let temporalA: GPUTexture | null = null;
+  let temporalB: GPUTexture | null = null;
   let accumBuffer: GPUBuffer | null = null;
   let gbufferBuffer: GPUBuffer | null = null;
+  let gbufferHistoryBuffer: GPUBuffer | null = null;
   let momentsBuffer: GPUBuffer | null = null;
   let filteredA: GPUTexture | null = null;
   let filteredB: GPUTexture | null = null;
   let denoiseBindGroups: GPUBindGroup[] | null = null;
   let computeBindGroup: GPUBindGroup | null = null;
-  let renderBindGroupRaw: GPUBindGroup | null = null;
-  let renderBindGroupDenoised: GPUBindGroup | null = null;
+  let temporalBindGroups: GPUBindGroup[][] | null = null;
+  let renderBindGroupA: GPUBindGroup | null = null;
+  let renderBindGroupB: GPUBindGroup | null = null;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.floor(canvas.clientWidth * dpr * resScale));
     canvas.height = Math.max(1, Math.floor(canvas.clientHeight * dpr * resScale));
     frameCount = 0;
+    historyValid = false;
+    temporalParity = 0;
+    displayedParity = 0;
     recreateTexture();
   }
 
@@ -280,11 +308,23 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     if (outputTexture) {
       outputTexture.destroy();
     }
+    if (motionTexture) {
+      motionTexture.destroy();
+    }
+    if (temporalA) {
+      temporalA.destroy();
+    }
+    if (temporalB) {
+      temporalB.destroy();
+    }
     if (accumBuffer) {
       accumBuffer.destroy();
     }
     if (gbufferBuffer) {
       gbufferBuffer.destroy();
+    }
+    if (gbufferHistoryBuffer) {
+      gbufferHistoryBuffer.destroy();
     }
     if (momentsBuffer) {
       momentsBuffer.destroy();
@@ -296,44 +336,71 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       filteredB.destroy();
     }
 
+    const size: [number, number] = [canvas.width, canvas.height];
+    const colorUsage =
+      GPUTextureUsage.STORAGE_BINDING |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_DST;
+
     outputTexture = device.createTexture({
-      size: [canvas.width, canvas.height],
+      size,
       format: 'rgba16float',
-      usage:
-        GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_DST,
+      usage: colorUsage,
+    });
+    motionTexture = device.createTexture({
+      size,
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    temporalA = device.createTexture({
+      size,
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+    });
+    temporalB = device.createTexture({
+      size,
+      format: 'rgba16float',
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
     });
 
+    const pixelCount = canvas.width * canvas.height;
     accumBuffer = device.createBuffer({
-      size: canvas.width * canvas.height * 16,
+      size: pixelCount * 16,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     gbufferBuffer = device.createBuffer({
-      size: canvas.width * canvas.height * 16,
-      usage: GPUBufferUsage.STORAGE,
+      size: pixelCount * 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    });
+    gbufferHistoryBuffer = device.createBuffer({
+      size: pixelCount * 16,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
     momentsBuffer = device.createBuffer({
-      size: canvas.width * canvas.height * 8,
+      size: pixelCount * 8,
       usage: GPUBufferUsage.STORAGE,
     });
 
     const filterUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING;
     filteredA = device.createTexture({
-      size: [canvas.width, canvas.height],
+      size,
       format: 'rgba16float',
       usage: filterUsage,
     });
     filteredB = device.createTexture({
-      size: [canvas.width, canvas.height],
+      size,
       format: 'rgba16float',
       usage: filterUsage,
     });
 
     const gbuf = gbufferBuffer;
+    const gbufHistory = gbufferHistoryBuffer;
     const mob = momentsBuffer;
     const filterA = filteredA;
     const filterB = filteredB;
+    const motion = motionTexture;
+    const tempA = temporalA;
+    const tempB = temporalB;
 
     computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
@@ -349,6 +416,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 8, resource: { buffer: gbuf } },
         { binding: 9, resource: { buffer: mob } },
         { binding: 10, resource: { buffer: sceneInfoBuffer } },
+        { binding: 11, resource: motion.createView() },
       ],
     });
 
@@ -370,25 +438,58 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       makeDenoiseBindGroup(filterB, filterA, stepBuffer4),
     ];
 
+    // The temporal pass reads the current frame (raw or filtered) and the
+    // previous temporal result, then writes the other temporal texture. Two
+    // bind groups per input mode handle the ping pong without rebuilding
+    // bind groups every frame.
+    const temporalLayout = temporalPipeline.getBindGroupLayout(0);
+    const makeTemporalBindGroup = (
+      input: GPUTexture,
+      history: GPUTexture,
+      out: GPUTexture,
+    ): GPUBindGroup =>
+      device.createBindGroup({
+        layout: temporalLayout,
+        entries: [
+          { binding: 0, resource: input.createView() },
+          { binding: 1, resource: history.createView() },
+          { binding: 2, resource: motion.createView() },
+          { binding: 3, resource: { buffer: gbuf } },
+          { binding: 4, resource: { buffer: gbufHistory } },
+          { binding: 5, resource: out.createView() },
+          { binding: 6, resource: { buffer: temporalParamsBuffer } },
+        ],
+      });
+    temporalBindGroups = [
+      [
+        makeTemporalBindGroup(outputTexture, tempB, tempA),
+        makeTemporalBindGroup(outputTexture, tempA, tempB),
+      ],
+      [
+        makeTemporalBindGroup(filterA, tempB, tempA),
+        makeTemporalBindGroup(filterA, tempA, tempB),
+      ],
+    ];
+
     const renderLayout = renderPipeline.getBindGroupLayout(0);
-    renderBindGroupRaw = device.createBindGroup({
+    renderBindGroupA = device.createBindGroup({
       layout: renderLayout,
       entries: [
-        { binding: 0, resource: outputTexture.createView() },
+        { binding: 0, resource: tempA.createView() },
         { binding: 1, resource: sampler },
       ],
     });
-    renderBindGroupDenoised = device.createBindGroup({
+    renderBindGroupB = device.createBindGroup({
       layout: renderLayout,
       entries: [
-        { binding: 0, resource: filterA.createView() },
+        { binding: 0, resource: tempB.createView() },
         { binding: 1, resource: sampler },
       ],
     });
   }
 
   function activeRenderBindGroup(): GPUBindGroup | null {
-    return denoiseEnabled ? renderBindGroupDenoised : renderBindGroupRaw;
+    return displayedParity === 0 ? renderBindGroupA : renderBindGroupB;
   }
 
   // Draw the tonemapped frame into an offscreen texture, copy it to a
@@ -477,14 +578,30 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let raf = 0;
 
   function frame() {
-    if (!running || !outputTexture || !accumBuffer || !computeBindGroup) {
+    if (
+      !running ||
+      !outputTexture ||
+      !motionTexture ||
+      !accumBuffer ||
+      !gbufferBuffer ||
+      !gbufferHistoryBuffer ||
+      !computeBindGroup ||
+      !temporalBindGroups
+    ) {
       return;
     }
+    const gbuf = gbufferBuffer;
+    const gbufHistory = gbufferHistoryBuffer;
+    const parity = temporalParity;
+    const modeIndex = denoiseEnabled ? 1 : 0;
+    const temporalGroup = temporalBindGroups[modeIndex]?.[parity];
+    displayedParity = parity;
     const activeBindGroup = activeRenderBindGroup();
-    if (!activeBindGroup) {
+    if (!activeBindGroup || !temporalGroup) {
       return;
     }
 
+    const useHistory = historyValid;
     const encoder = device.createCommandEncoder();
 
     const now = performance.now();
@@ -499,8 +616,13 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
     const aspect = canvas.width / canvas.height;
     const flags = (bounceEnabled ? 1 : 0) | (viewMode << 1);
-    const uniformData = cameraUniformData(camera, aspect, frameCount, flags);
+    const uniformData = cameraUniformData(camera, aspect, frameCount, flags, useHistory);
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+    device.queue.writeBuffer(
+      temporalParamsBuffer,
+      0,
+      new Uint32Array([useHistory ? 1 : 0, 0, 0, 0]),
+    );
 
     const computePass = encoder.beginComputePass();
     computePass.setPipeline(computePipeline);
@@ -522,6 +644,16 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       }
     }
 
+    // Blend the filtered frame with the reprojected previous frame. Raw mode
+    // skips the a-trous chain but still gets the temporal history.
+    const temporalPass = encoder.beginComputePass();
+    temporalPass.setPipeline(temporalPipeline);
+    temporalPass.setBindGroup(0, temporalGroup);
+    temporalPass.dispatchWorkgroups(groupsX, groupsY);
+    temporalPass.end();
+
+    encoder.copyBufferToBuffer(gbuf, 0, gbufHistory, 0, canvas.width * canvas.height * 16);
+
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
@@ -538,6 +670,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     pass.end();
 
     device.queue.submit([encoder.finish()]);
+    historyValid = true;
+    temporalParity = parity ^ 1;
     frameCount = Math.min(frameCount + 1, 1024);
     raf = requestAnimationFrame(frame);
   }
@@ -561,9 +695,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
       frameCount = 0;
+      historyValid = false;
     },
     setDenoiseEnabled: (enabled: boolean) => {
       denoiseEnabled = enabled;
+      historyValid = false;
     },
     setResolutionScale: (scale: number) => {
       const clamped = Math.max(0.25, Math.min(1, scale));
@@ -577,19 +713,23 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       if (clamped !== viewMode) {
         viewMode = clamped;
         frameCount = 0;
+        historyValid = false;
       }
     },
     setAperture: (value: number) => {
       camera.aperture = Math.max(0, value);
       frameCount = 0;
+      historyValid = false;
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);
       frameCount = 0;
+      historyValid = false;
     },
     setSkyIntensity: (value: number) => {
       camera.skyIntensity = Math.max(0, value);
       frameCount = 0;
+      historyValid = false;
     },
   };
 }
