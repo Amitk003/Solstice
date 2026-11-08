@@ -67,6 +67,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const presetButtons = document.querySelectorAll<HTMLButtonElement>('.presetButton');
+    presetButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        context.setCameraPreset(Number(button.dataset.preset ?? '0'));
+      });
+    });
+
     const saveButton = document.querySelector<HTMLButtonElement>('#saveButton');
     if (saveButton) {
       saveButton.addEventListener('click', async () => {

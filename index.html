@@ -79,7 +79,13 @@
           <option value="2">Linear</option>
         </select>
       </label>
-      <button id="saveButton" type="button" style="margin-left: 12px">Save PNG</button>
+      <span style="margin-left: 12px">
+        <button class="presetButton" type="button" data-preset="0">Home</button>
+        <button class="presetButton" type="button" data-preset="1">Front</button>
+        <button class="presetButton" type="button" data-preset="2">Top</button>
+        <button class="presetButton" type="button" data-preset="3" style="margin-right: 12px">Low</button>
+      </span>
+      <button id="saveButton" type="button">Save PNG</button>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
