@@ -17,7 +17,7 @@ the page and look around.
 ## What is inside
 
 - WebGPU compute pipelines for ray generation, tracing, shading, and display
-- GPU-built BVH (morton codes + radix sort + linear BVH) for fast tracing
+- GPU-built BVH (morton codes + bitonic sort + level built tree) for fast tracing
 - Edge aware a-trous denoiser guided by normals, depth, and variance
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering

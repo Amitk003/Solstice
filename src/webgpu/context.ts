@@ -6,10 +6,12 @@ import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
+import { buildGpuBvh, triangleSceneBounds } from '../bvh/gpuBuild';
 
 export interface RenderStats {
   samples: number;
   fps: number;
+  bvh: string;
 }
 
 export interface RenderContext {
@@ -140,19 +142,30 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   device.queue.writeBuffer(trianglesBuffer, 0, triData);
 
-  const bvh = buildBvh(tris);
-  const nodesBuffer = nodesToBuffer(bvh.nodes);
-  const bvhNodesBuffer = device.createBuffer({
-    size: nodesBuffer.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(bvhNodesBuffer, 0, nodesBuffer);
-
-  const triIndicesBuffer = device.createBuffer({
-    size: bvh.triangleIndices.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
+  let bvhNodesBuffer: GPUBuffer;
+  let triIndicesBuffer: GPUBuffer;
+  let bvhSource = 'gpu';
+  try {
+    const bounds = triangleSceneBounds(tris);
+    const gpuBvh = await buildGpuBvh(device, trianglesBuffer, tris.length, bounds);
+    bvhNodesBuffer = gpuBvh.nodesBuffer;
+    triIndicesBuffer = gpuBvh.triIndicesBuffer;
+  } catch (error) {
+    console.warn('GPU BVH build failed. Falling back to the CPU build.', error);
+    bvhSource = 'cpu';
+    const bvh = buildBvh(tris);
+    const nodesData = nodesToBuffer(bvh.nodes);
+    bvhNodesBuffer = device.createBuffer({
+      size: nodesData.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(bvhNodesBuffer, 0, nodesData);
+    triIndicesBuffer = device.createBuffer({
+      size: bvh.triangleIndices.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
+  }
 
   const lightData = lightsStorageData(defaultLights());
   const lightsBuffer = device.createBuffer({
@@ -482,7 +495,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         cancelAnimationFrame(raf);
       }
     },
-    getStats: () => ({ samples: frameCount, fps }),
+    getStats: () => ({ samples: frameCount, fps, bvh: bvhSource }),
     captureImage,
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
