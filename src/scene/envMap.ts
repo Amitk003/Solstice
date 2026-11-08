@@ -31,7 +31,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 // texel. sun is the direction the bright disk is drawn at.
 function envColor(
   dir: [number, number, number],
-  sun: [number, number, number],
+  sunDir: [number, number, number],
   out: [number, number, number],
 ): void {
   const horizon: [number, number, number] = [0.55, 0.7, 0.95];
@@ -46,7 +46,7 @@ function envColor(
     out[i] = (ground[i] ?? 0) * (1 - blend) + (out[i] ?? 0) * blend;
   }
 
-  const sun = normalizeDirection(sun);
+  const sun = normalizeDirection(sunDir);
   const sunDot = dir[0] * sun[0] + dir[1] * sun[1] + dir[2] * sun[2];
   // Soft glow around the sun plus a small bright disk.
   const glow = Math.pow(Math.max(0, sunDot), 8) * 0.6;
