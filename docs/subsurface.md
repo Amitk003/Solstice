@@ -4,8 +4,8 @@ Subsurface scattering makes a surface look like wax or skin. Light enters
 the surface, spreads a little, and leaves from a wider area. The light
 also passes through thin parts, so backlit areas glow.
 
-This build uses a shading approximation. It is not a full volumetric
-random walk yet. The approximation has two parts.
+This build has two layers: a wrapped direct term, and a volumetric
+random walk that carries the transmitted light.
 
 ## Part one: wrapped diffuse light
 
@@ -20,28 +20,40 @@ wrapped = max((dot(n, light) + wrap) / (1 + wrap), 0)
 `wrap` comes from the material `subsurface` value. With a wrap around 0.5
 the light spills past the terminator and the object looks soft and waxy.
 
-## Part two: backlight transmission
+## Part two: the volume random walk
 
-When the light is behind the surface, the normal shadow ray hits the
-object itself and the surface goes dark. The approximation adds a second
-term for light that passes through:
+After the direct light, the path does not bounce off the wax. It walks
+through it:
 
-```text
-back = max((-dot(n, light) + wrap) / (1 + wrap), 0) * translucency
-```
+- The path refracts into the material with the index of refraction.
+- An interior ray finds the far side through the BVH.
+- The segment attenuates with Beer-Lambert, `exp(-absorption * distance)`.
+  The wax absorption is warm, so red light survives the trip and blue
+  light dies quickly.
+- At the far side the path either exits with a cosine hemisphere
+  direction (60 percent chance) or scatters isotropically and walks
+  again. After four interior steps the walk always exits.
 
-The transmission term skips the shadow ray, because that ray would always
-hit the object. It is scaled by `translucency`, which also comes from the
-material `subsurface` value. The result is a warm glow on the far side of
-the object.
+The exit point becomes the new path vertex, so the transmitted light
+gathers direct light and sky light like any other bounce. Thin parts of
+the object transmit more, because the path crosses less wax.
+
+When the bounce toggle is off, the preview uses a simple backlight glow
+instead of the walk. That keeps the single bounce preview readable.
 
 ## Material fields
 
 `Material` in `src/scene/materials.ts` has a `subsurface` value from 0 to
-1. Existing materials use 0. The new `MAT_WAX` material uses 1.
+1. Existing materials use 0. The `MAT_WAX` material uses 1.
 
-The values are packed into the material storage buffer at float slot 10.
-The struct in `src/shaders/bvh.wgsl` reads the same slot.
+- `subsurface` drives the wrap for wrapped light.
+- `ior` refracts the path into the wax.
+- `absorption` attenuates each interior segment. Red is lowest, blue is
+  highest, so the glow is warm.
+
+The values are packed into the material storage buffer at float slot 10
+and the absorption slots. The struct in `src/shaders/bvh.wgsl` reads the
+same layout.
 
 ## The wax sphere
 
@@ -51,10 +63,13 @@ cream base colour.
 
 ## Limits
 
-- This is a surface approximation, not a volumetric random walk. It does
-  not model a scattering distance inside the object.
-- The transmission term ignores occlusion by other objects. It assumes
-  the light reaches the back of the surface.
-- Thick and thin parts of an object do not look different yet. A real
-  random walk would use the distance traveled inside the medium.
-- The bounce after a subsurface hit is a normal cosine hemisphere bounce.
+- The walk is Monte Carlo, so a single frame is noisy. The accumulation
+  and the denoiser average it over time.
+- The walk does not model a scattering albedo inside the medium. The
+  attenuation is absorption only.
+- The exit test is a fixed 60 percent per step. A full model would use
+  the distance to the surface and the scattering coefficient.
+- Open or thin geometry can let the interior ray escape. The code then
+  falls back to a sky sample with a fixed attenuation distance.
+- The bounce after the walk can be noisy on the first frames. That is
+  expected when few samples have accumulated.
