@@ -1,5 +1,6 @@
 import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
+import denoiseSource from '../shaders/denoise.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
@@ -22,6 +23,7 @@ export interface RenderContext {
   setAperture: (value: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
+  setDenoiseEnabled: (enabled: boolean) => void;
 }
 
 async function encodePng(
@@ -64,11 +66,31 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   const shaderModuleTrace = device.createShaderModule({ code: traceSource });
   const shaderModuleBlit = device.createShaderModule({ code: blitSource });
+  const shaderModuleDenoise = device.createShaderModule({ code: denoiseSource });
 
   const computePipeline = device.createComputePipeline({
     layout: 'auto',
     compute: { module: shaderModuleTrace, entryPoint: 'main' },
   });
+
+  const denoisePipeline = device.createComputePipeline({
+    layout: 'auto',
+    compute: { module: shaderModuleDenoise, entryPoint: 'main' },
+  });
+
+  // One small uniform buffer per a-trous pass so each pass can use its own
+  // step size without rewriting a shared buffer mid frame.
+  function makeStepBuffer(step: number): GPUBuffer {
+    const buffer = device.createBuffer({
+      size: 16,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(buffer, 0, new Uint32Array([step, 0, 0, 0]));
+    return buffer;
+  }
+  const stepBuffer1 = makeStepBuffer(1);
+  const stepBuffer2 = makeStepBuffer(2);
+  const stepBuffer4 = makeStepBuffer(4);
 
   const camera = createCamera();
 
@@ -104,6 +126,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   let frameCount = 0;
   let bounceEnabled = true;
+  let denoiseEnabled = true;
   let resScale = 1;
   let viewMode = 0;
   let fps = 0;
@@ -165,8 +188,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let accumBuffer: GPUBuffer | null = null;
   let gbufferBuffer: GPUBuffer | null = null;
   let momentsBuffer: GPUBuffer | null = null;
+  let filteredA: GPUTexture | null = null;
+  let filteredB: GPUTexture | null = null;
+  let denoiseBindGroups: GPUBindGroup[] | null = null;
   let computeBindGroup: GPUBindGroup | null = null;
-  let renderBindGroup: GPUBindGroup | null = null;
+  let renderBindGroupRaw: GPUBindGroup | null = null;
+  let renderBindGroupDenoised: GPUBindGroup | null = null;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -188,6 +215,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     }
     if (momentsBuffer) {
       momentsBuffer.destroy();
+    }
+    if (filteredA) {
+      filteredA.destroy();
+    }
+    if (filteredB) {
+      filteredB.destroy();
     }
 
     outputTexture = device.createTexture({
@@ -212,6 +245,23 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       usage: GPUBufferUsage.STORAGE,
     });
 
+    const filterUsage = GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING;
+    filteredA = device.createTexture({
+      size: [canvas.width, canvas.height],
+      format: 'rgba16float',
+      usage: filterUsage,
+    });
+    filteredB = device.createTexture({
+      size: [canvas.width, canvas.height],
+      format: 'rgba16float',
+      usage: filterUsage,
+    });
+
+    const gbuf = gbufferBuffer;
+    const mob = momentsBuffer;
+    const filterA = filteredA;
+    const filterB = filteredB;
+
     computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
       entries: [
@@ -223,25 +273,56 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 5, resource: { buffer: accumBuffer } },
         { binding: 6, resource: { buffer: lightsBuffer } },
         { binding: 7, resource: { buffer: materialsBuffer } },
-        { binding: 8, resource: { buffer: gbufferBuffer } },
-        { binding: 9, resource: { buffer: momentsBuffer } },
+        { binding: 8, resource: { buffer: gbuf } },
+        { binding: 9, resource: { buffer: mob } },
       ],
     });
 
-    renderBindGroup = device.createBindGroup({
-      layout: renderPipeline.getBindGroupLayout(0),
+    const denoiseLayout = denoisePipeline.getBindGroupLayout(0);
+    const makeDenoiseBindGroup = (input: GPUTexture, output: GPUTexture, params: GPUBuffer) =>
+      device.createBindGroup({
+        layout: denoiseLayout,
+        entries: [
+          { binding: 0, resource: input.createView() },
+          { binding: 1, resource: output.createView() },
+          { binding: 2, resource: { buffer: gbuf } },
+          { binding: 3, resource: { buffer: mob } },
+          { binding: 4, resource: { buffer: params } },
+        ],
+      });
+    denoiseBindGroups = [
+      makeDenoiseBindGroup(outputTexture, filterA, stepBuffer1),
+      makeDenoiseBindGroup(filterA, filterB, stepBuffer2),
+      makeDenoiseBindGroup(filterB, filterA, stepBuffer4),
+    ];
+
+    const renderLayout = renderPipeline.getBindGroupLayout(0);
+    renderBindGroupRaw = device.createBindGroup({
+      layout: renderLayout,
       entries: [
         { binding: 0, resource: outputTexture.createView() },
         { binding: 1, resource: sampler },
       ],
     });
+    renderBindGroupDenoised = device.createBindGroup({
+      layout: renderLayout,
+      entries: [
+        { binding: 0, resource: filterA.createView() },
+        { binding: 1, resource: sampler },
+      ],
+    });
+  }
+
+  function activeRenderBindGroup(): GPUBindGroup | null {
+    return denoiseEnabled ? renderBindGroupDenoised : renderBindGroupRaw;
   }
 
   // Draw the tonemapped frame into an offscreen texture, copy it to a
   // buffer, then build a PNG from the pixels. This avoids depending on
   // canvas readback, which can return an empty image for WebGPU canvases.
   async function captureImage(): Promise<Blob | null> {
-    if (!outputTexture || !renderBindGroup) {
+    const activeBindGroup = activeRenderBindGroup();
+    if (!outputTexture || !activeBindGroup) {
       return null;
     }
     const width = canvas.width;
@@ -270,7 +351,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       ],
     });
     pass.setPipeline(renderPipeline);
-    pass.setBindGroup(0, renderBindGroup);
+    pass.setBindGroup(0, activeBindGroup);
     pass.draw(3);
     pass.end();
 
@@ -322,7 +403,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let raf = 0;
 
   function frame() {
-    if (!running || !outputTexture || !accumBuffer || !computeBindGroup || !renderBindGroup) {
+    if (!running || !outputTexture || !accumBuffer || !computeBindGroup) {
+      return;
+    }
+    const activeBindGroup = activeRenderBindGroup();
+    if (!activeBindGroup) {
       return;
     }
 
@@ -351,6 +436,18 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     computePass.dispatchWorkgroups(groupsX, groupsY);
     computePass.end();
 
+    // Three a-trous passes with step sizes 1, 2, and 4. Each pass gets its
+    // own compute pass so the next one sees the previous result.
+    if (denoiseEnabled && denoiseBindGroups) {
+      for (const bindGroup of denoiseBindGroups) {
+        const denoisePass = encoder.beginComputePass();
+        denoisePass.setPipeline(denoisePipeline);
+        denoisePass.setBindGroup(0, bindGroup);
+        denoisePass.dispatchWorkgroups(groupsX, groupsY);
+        denoisePass.end();
+      }
+    }
+
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
@@ -362,7 +459,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       ],
     });
     pass.setPipeline(renderPipeline);
-    pass.setBindGroup(0, renderBindGroup);
+    pass.setBindGroup(0, activeBindGroup);
     pass.draw(3);
     pass.end();
 
@@ -390,6 +487,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
       frameCount = 0;
+    },
+    setDenoiseEnabled: (enabled: boolean) => {
+      denoiseEnabled = enabled;
     },
     setResolutionScale: (scale: number) => {
       const clamped = Math.max(0.25, Math.min(1, scale));
