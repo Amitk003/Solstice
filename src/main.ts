@@ -46,6 +46,27 @@ async function main(): Promise<void> {
       });
     }
 
+    const saveButton = document.querySelector<HTMLButtonElement>('#saveButton');
+    if (saveButton) {
+      saveButton.addEventListener('click', async () => {
+        saveButton.disabled = true;
+        try {
+          const blob = await context.captureImage();
+          if (!blob) {
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `solstice-${Date.now()}.png`;
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } finally {
+          saveButton.disabled = false;
+        }
+      });
+    }
+
     const modeNames = ['shaded', 'normal', 'depth'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {
