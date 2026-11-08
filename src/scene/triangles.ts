@@ -41,6 +41,15 @@ export function makeTriangles(): TriangleData[] {
   ];
 }
 
+// Unit gem mesh in local space. The instance TLAS reuses this one BLAS for
+// every gem, so it must stay centred at the origin.
+export function makeGemMesh(): TriangleData[] {
+  return objToTriangles(icosahedronSource, MAT_GEM, {
+    scale: 1,
+    offset: [0, 0, 0],
+  });
+}
+
 export function makeFloorTriangles(): TriangleData[] {
   const y = -1.5;
   const s = 8;
