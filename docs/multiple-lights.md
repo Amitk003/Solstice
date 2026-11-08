@@ -6,22 +6,24 @@ having. Nothing in the shading loop names a specific light.
 
 ## What changed
 
-- The light list holds two sphere lights, a warm one and a cool one.
-- Each light gets its own emissive sphere in the mesh, built from the
-  same definition, so the visible glow always matches the light.
-- Each emissive sphere has its own material, so the glow color comes from
+- The light list holds a warm rectangular panel light and a cool
+  sphere fill light.
+- Each light gets its own emissive mesh, built from the same
+  definition, so the visible glow always matches the light.
+- Each emissive mesh has its own material, so the glow color comes from
   the material table just like any other surface.
 - Direct lighting loops over every light and sums the samples. Add a
   third light and it just works.
 
 ## How the sampling works
 
-For each light, the shader draws one point on the sphere and computes the
-same exact single-sample estimate as before: albedo over pi, times light
-color, times the surface cosine, times sphere area times the light
-cosine over distance squared. A distance limited shadow ray rejects
-occluded samples. Each light uses its own random values so the samples do
-not line up.
+For each light, the shader draws one point on the shape and computes
+the same single-sample estimate: albedo over pi, times light color,
+times the surface cosine, times the shape area times the light cosine
+over distance squared. The panel light draws a uniform point on the
+rectangle, the fill sphere draws a point on the sphere. A distance
+limited shadow ray rejects occluded samples. Each light uses its own
+random values so the samples do not line up.
 
 ## What you should see
 
