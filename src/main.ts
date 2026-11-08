@@ -60,6 +60,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const toneSelect = document.querySelector<HTMLSelectElement>('#toneSelect');
+    if (toneSelect) {
+      toneSelect.addEventListener('change', () => {
+        context.setToneMode(Number(toneSelect.value));
+      });
+    }
+
     const saveButton = document.querySelector<HTMLButtonElement>('#saveButton');
     if (saveButton) {
       saveButton.addEventListener('click', async () => {
