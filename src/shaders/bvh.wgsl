@@ -731,6 +731,15 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
         inside = !inside;
         medium = mat.absorption;
       }
+      // Roughness frosts the glass. The perfect direction is mixed
+      // toward a random direction in the hemisphere around it, so a
+      // sharp reflection turns into a soft blur as roughness grows.
+      if (mat.roughness > 0.0) {
+        let blurU1 = hash01(gid, camera.frame * 256u + depth * 8u + 48u);
+        let blurU2 = hash01(gid, camera.frame * 256u + depth * 8u + 49u);
+        let jitter = cosineHemisphere(dir, blurU1, blurU2);
+        dir = normalize(mix(dir, jitter, clamp(mat.roughness, 0.0, 1.0)));
+      }
       origin = hitPos + dir * 0.002;
       throughput = throughput * mat.baseColor;
       continue;
