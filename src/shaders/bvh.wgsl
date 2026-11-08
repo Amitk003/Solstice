@@ -105,6 +105,10 @@ struct Material {
 // Previous frame UV for the primary hit. z is 1 when the reprojection is
 // inside the previous image, otherwise 0. Sky pixels stay at 0.
 @group(0) @binding(11) var motionTexture: texture_storage_2d<rgba16float, write>;
+// Procedural HDR environment map. The sky color and the reflections of a
+// miss both sample it, so windows and the sun show up in mirror and glass.
+@group(0) @binding(12) var envMap: texture_2d<f32>;
+@group(0) @binding(13) var envSampler: sampler;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -480,20 +484,16 @@ fn hash01(pixel: vec2u, salt: u32) -> f32 {
   return f32(s) / 4294967295.0;
 }
 
-// Procedural sky. It has a ground below the horizon, a gradient above, and
-// a soft glow around the sun direction so the background points at the
-// light. Used for ray misses, so it lights the scene indirectly too.
+// HDR environment map lookup. It has a ground below the horizon, a sky
+// gradient above, a bright sun disk at the sun direction, and window
+// highlights. Used for ray misses, so it also lights the scene indirectly
+// and appears in mirror and glass reflections.
 fn skyColor(dir: vec3f) -> vec3f {
-  let horizon = vec3f(0.55, 0.7, 0.95);
-  let zenith = vec3f(0.12, 0.22, 0.5);
-  let groundCol = vec3f(0.16, 0.14, 0.12);
-  let sky = mix(horizon, zenith, clamp(dir.y, 0.0, 1.0));
-  let blend = smoothstep(-0.05, 0.05, dir.y);
-  var color = mix(groundCol, sky, blend);
-  let sunDir = normalize(camera.lightDir);
-  let glow = pow(clamp(dot(dir, sunDir), 0.0, 1.0), 8.0);
-  color = color + vec3f(2.0, 1.6, 1.1) * glow * 0.6;
-  return 1.5 * camera.skyIntensity * color;
+  let phi = atan2(dir.z, dir.x);
+  let theta = asin(clamp(dir.y, -1.0, 1.0));
+  let uv = vec2f(phi * 0.15915494 + 0.5, 0.5 - theta * 0.31830989);
+  let env = textureSampleLevel(envMap, envSampler, uv, 0.0).rgb;
+  return 1.5 * camera.skyIntensity * env;
 }
 
 // Material kinds must match MaterialKind in materials.ts.

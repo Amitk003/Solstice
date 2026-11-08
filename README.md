@@ -20,6 +20,7 @@ the page and look around.
 - GPU-built BVH (morton codes + bitonic sort + level built tree) for fast tracing
 - Edge aware a-trous denoiser guided by normals, depth, and variance
 - Temporal reprojection with motion vectors, history clamping, and disocclusion tests
+- Procedural HDR environment map for the sky, indirect light, and reflections
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
 - One click PNG export of the tone mapped frame
