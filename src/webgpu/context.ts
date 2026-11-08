@@ -4,7 +4,7 @@ import denoiseSource from '../shaders/denoise.wgsl?raw';
 import temporalSource from '../shaders/temporal.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera, panCamera } from '../camera/camera';
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
-import { defaultLights, lightsStorageData } from '../scene/lights';
+import { defaultLights, lightsStorageData, LAMP_LIGHT, FILL_LIGHT } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
 import { ENV_MAP_WIDTH, ENV_MAP_HEIGHT, makeEnvMapData, toHalfFloatData } from '../scene/envMap';
 import { makeGemInstances, instanceWorldBounds, sceneInfoUniformData } from '../scene/instances';
@@ -38,6 +38,7 @@ export interface RenderContext {
   setFocusOffset: (value: number) => void;
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
+  setKeyLightIntensity: (scale: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
@@ -868,6 +869,25 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setSunElevation: (elevationDegrees: number) => {
       sunElevation = Math.max(2, Math.min(89, elevationDegrees));
       updateSun();
+    },
+    setKeyLightIntensity: (scale: number) => {
+      // Scale the panel light color and its visible glow together, so
+      // a brighter panel really is brighter and not just more glow.
+      const clamped = Math.max(0, Math.min(3, scale));
+      const color: [number, number, number] = [
+        (LAMP_LIGHT.color[0] ?? 0) * clamped,
+        (LAMP_LIGHT.color[1] ?? 0) * clamped,
+        (LAMP_LIGHT.color[2] ?? 0) * clamped,
+      ];
+      const lights = [
+        { ...LAMP_LIGHT, color },
+        FILL_LIGHT,
+      ];
+      device.queue.writeBuffer(lightsBuffer, 0, lightsStorageData(lights));
+      // MAT_LAMP is material slot 3. Its base color is at byte 3 * 48.
+      device.queue.writeBuffer(materialsBuffer, 3 * 48, new Float32Array([color[0] ?? 0, color[1] ?? 0, color[2] ?? 0, 1.0]));
+      frameCount = 0;
+      historyValid = false;
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);
