@@ -10,9 +10,7 @@
 export const ENV_MAP_WIDTH = 1024;
 export const ENV_MAP_HEIGHT = 512;
 
-// Must match the camera light direction used for the direct sun, so the
-// bright disk in the background lines up with the sun shadow ray.
-const SUN_DIRECTION: [number, number, number] = [0.4, 0.8, -0.4];
+export const DEFAULT_SUN_DIRECTION: [number, number, number] = [0.4, 0.8, -0.4];
 
 const WINDOWS: Array<{ direction: [number, number, number]; brightness: number }> = [
   { direction: [0.9, 0.35, 0.2], brightness: 7.0 },
@@ -29,8 +27,13 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-// A single equirectangular texel. dir is the unit direction for the texel.
-function envColor(dir: [number, number, number], out: [number, number, number]): void {
+// A single equirectangular texel. dir is the unit direction for the
+// texel. sun is the direction the bright disk is drawn at.
+function envColor(
+  dir: [number, number, number],
+  sun: [number, number, number],
+  out: [number, number, number],
+): void {
   const horizon: [number, number, number] = [0.55, 0.7, 0.95];
   const zenith: [number, number, number] = [0.12, 0.22, 0.5];
   const ground: [number, number, number] = [0.16, 0.14, 0.12];
@@ -43,7 +46,7 @@ function envColor(dir: [number, number, number], out: [number, number, number]):
     out[i] = (ground[i] ?? 0) * (1 - blend) + (out[i] ?? 0) * blend;
   }
 
-  const sun = normalizeDirection(SUN_DIRECTION);
+  const sun = normalizeDirection(sun);
   const sunDot = dir[0] * sun[0] + dir[1] * sun[1] + dir[2] * sun[2];
   // Soft glow around the sun plus a small bright disk.
   const glow = Math.pow(Math.max(0, sunDot), 8) * 0.6;
@@ -66,7 +69,7 @@ function envColor(dir: [number, number, number], out: [number, number, number]):
   }
 }
 
-export function makeEnvMapData(): Float32Array {
+export function makeEnvMapData(sun: [number, number, number] = DEFAULT_SUN_DIRECTION): Float32Array {
   const data = new Float32Array(ENV_MAP_WIDTH * ENV_MAP_HEIGHT * 4);
   const color: [number, number, number] = [0, 0, 0];
   for (let y = 0; y < ENV_MAP_HEIGHT; y++) {
@@ -82,7 +85,7 @@ export function makeEnvMapData(): Float32Array {
         Math.sin(theta),
         Math.cos(theta) * Math.sin(phi),
       ];
-      envColor(dir, color);
+      envColor(dir, sun, color);
       const o = (y * ENV_MAP_WIDTH + x) * 4;
       data[o] = color[0] ?? 0;
       data[o + 1] = color[1] ?? 0;
