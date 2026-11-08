@@ -39,6 +39,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const focusRange = document.querySelector<HTMLInputElement>('#focusRange');
+    if (focusRange) {
+      focusRange.addEventListener('input', () => {
+        context.setFocusOffset(Number(focusRange.value));
+      });
+    }
+
     const sunRange = document.querySelector<HTMLInputElement>('#sunRange');
     if (sunRange) {
       sunRange.addEventListener('input', () => {

@@ -31,6 +31,7 @@ the page and look around.
 - Camera preset buttons for saved views
 - Camera pan with the arrow keys or WASD
 - HUD readout with frame time and resolution
+- Focus offset slider to place the depth of field plane
 - Firefly clamp that stops single sample spikes
 - Adaptive sampling that skips the path trace once a pixel converges
 - Rectangular panel light for softer key shadows
