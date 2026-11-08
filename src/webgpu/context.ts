@@ -20,6 +20,9 @@ import { buildInstanceTlas } from '../bvh/tlas';
 export interface RenderStats {
   samples: number;
   fps: number;
+  ms: number;
+  width: number;
+  height: number;
   bvh: string;
 }
 
@@ -773,7 +776,14 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         cancelAnimationFrame(raf);
       }
     },
-    getStats: () => ({ samples: frameCount, fps, bvh: bvhSource }),
+    getStats: () => ({
+      samples: frameCount,
+      fps,
+      ms: fps > 0 ? 1000 / fps : 0,
+      width: canvas.width,
+      height: canvas.height,
+      bvh: bvhSource,
+    }),
     captureImage,
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
