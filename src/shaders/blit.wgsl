@@ -14,8 +14,17 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
   return out;
 }
 
+// One exposure value, padded to 16 bytes for the uniform buffer.
+struct Params {
+  exposure: f32,
+  _pad0: u32,
+  _pad1: u32,
+  _pad2: u32,
+}
+
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var<uniform> params: Params;
 
 fn aces(x: vec3f) -> vec3f {
   let a = 2.51;
@@ -29,7 +38,7 @@ fn aces(x: vec3f) -> vec3f {
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4f {
   let hdr = textureSample(tex, samp, in.uv).rgb;
-  let mapped = aces(hdr * 1.2);
+  let mapped = aces(hdr * params.exposure);
   let gamma = pow(mapped, vec3f(1.0 / 2.2));
   return vec4f(gamma, 1.0);
 }

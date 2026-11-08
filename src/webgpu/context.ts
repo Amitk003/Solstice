@@ -35,6 +35,7 @@ export interface RenderContext {
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
+  setExposure: (value: number) => void;
 }
 
 async function encodePng(
@@ -297,6 +298,14 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     minFilter: 'linear',
   });
 
+  // One exposure value for the display pass. It only changes the tone map,
+  // never the traced radiance, so it needs no sample reset.
+  const displayParamsBuffer = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(displayParamsBuffer, 0, new Float32Array([1.2, 0, 0, 0]));
+
   let outputTexture: GPUTexture | null = null;
   let motionTexture: GPUTexture | null = null;
   let temporalA: GPUTexture | null = null;
@@ -499,6 +508,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       entries: [
         { binding: 0, resource: tempA.createView() },
         { binding: 1, resource: sampler },
+        { binding: 2, resource: { buffer: displayParamsBuffer } },
       ],
     });
     renderBindGroupB = device.createBindGroup({
@@ -506,6 +516,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       entries: [
         { binding: 0, resource: tempB.createView() },
         { binding: 1, resource: sampler },
+        { binding: 2, resource: { buffer: displayParamsBuffer } },
       ],
     });
   }
@@ -752,6 +763,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       camera.skyIntensity = Math.max(0, value);
       frameCount = 0;
       historyValid = false;
+    },
+    setExposure: (value: number) => {
+      const clamped = Math.max(0.1, Math.min(4, value));
+      device.queue.writeBuffer(displayParamsBuffer, 0, new Float32Array([clamped, 0, 0, 0]));
     },
   };
 }
