@@ -88,10 +88,10 @@ async function main(): Promise<void> {
       });
     }
 
-    const modeNames = ['shaded', 'normal', 'depth'];
+    const modeNames = ['shaded', 'normal', 'depth', 'albedo'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {
-      if (event.key === '1' || event.key === '2' || event.key === '3') {
+      if (event.key === '1' || event.key === '2' || event.key === '3' || event.key === '4') {
         viewMode = Number(event.key) - 1;
         context.setViewMode(viewMode);
       }

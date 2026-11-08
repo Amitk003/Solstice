@@ -938,6 +938,12 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     } else {
       color = vec3f(0.0);
     }
+  } else if (viewMode == 3u) {
+    if (primary.found) {
+      color = materials[primary.material].baseColor;
+    } else {
+      color = vec3f(0.0);
+    }
   } else {
     color = tracePath(rayOrigin, dir, gid.xy);
   }
