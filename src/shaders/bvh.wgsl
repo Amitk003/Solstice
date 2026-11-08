@@ -866,7 +866,10 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     }
   }
 
-  return radiance;
+  // Firefly clamp. One lucky sample can carry a huge spike that the
+  // denoiser cannot clean. Real HDR peaks (the sun disk and lamp glow)
+  // sit far below 64, so this only removes the spikes.
+  return min(radiance, vec3f(64.0));
 }
 
 @compute @workgroup_size(8, 8, 1)
