@@ -163,6 +163,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   let outputTexture: GPUTexture | null = null;
   let accumBuffer: GPUBuffer | null = null;
+  let gbufferBuffer: GPUBuffer | null = null;
+  let momentsBuffer: GPUBuffer | null = null;
   let computeBindGroup: GPUBindGroup | null = null;
   let renderBindGroup: GPUBindGroup | null = null;
 
@@ -181,6 +183,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     if (accumBuffer) {
       accumBuffer.destroy();
     }
+    if (gbufferBuffer) {
+      gbufferBuffer.destroy();
+    }
+    if (momentsBuffer) {
+      momentsBuffer.destroy();
+    }
 
     outputTexture = device.createTexture({
       size: [canvas.width, canvas.height],
@@ -195,6 +203,14 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       size: canvas.width * canvas.height * 16,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
+    gbufferBuffer = device.createBuffer({
+      size: canvas.width * canvas.height * 16,
+      usage: GPUBufferUsage.STORAGE,
+    });
+    momentsBuffer = device.createBuffer({
+      size: canvas.width * canvas.height * 8,
+      usage: GPUBufferUsage.STORAGE,
+    });
 
     computeBindGroup = device.createBindGroup({
       layout: computePipeline.getBindGroupLayout(0),
@@ -207,6 +223,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 5, resource: { buffer: accumBuffer } },
         { binding: 6, resource: { buffer: lightsBuffer } },
         { binding: 7, resource: { buffer: materialsBuffer } },
+        { binding: 8, resource: { buffer: gbufferBuffer } },
+        { binding: 9, resource: { buffer: momentsBuffer } },
       ],
     });
 

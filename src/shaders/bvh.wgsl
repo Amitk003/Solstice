@@ -68,6 +68,12 @@ struct Material {
 @group(0) @binding(5) var<storage, read_write> accum: array<vec4f>;
 @group(0) @binding(6) var<storage, read> lights: array<Light>;
 @group(0) @binding(7) var<storage, read> materials: array<Material>;
+// Normal.xyz plus hit distance for the primary ray. Used by the denoiser
+// to keep edges sharp. Zero means the ray hit the sky.
+@group(0) @binding(8) var<storage, read_write> gbuffer: array<vec4f>;
+// Running mean of luminance and squared luminance per pixel. Gives the
+// denoiser a variance estimate for each pixel.
+@group(0) @binding(9) var<storage, read_write> moments: array<vec2f>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -527,12 +533,24 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     color = tracePath(rayOrigin, dir, gid.xy);
   }
   let idx = gid.y * dims.x + gid.x;
+  if (primary.found) {
+    gbuffer[idx] = vec4f(normalize(primary.normal), primary.t);
+  } else {
+    gbuffer[idx] = vec4f(0.0);
+  }
+
+  let lum = dot(color, vec3f(0.2126, 0.7152, 0.0722));
+  let sampleMoment = vec2f(lum, lum * lum);
   let n = f32(camera.frame + 1u);
   var blended = vec4f(color, 1.0);
+  var blendedMoment = sampleMoment;
   if (camera.frame > 0u) {
     let prev = accum[idx];
     blended = (prev * (n - 1.0) + vec4f(color, 1.0)) / n;
+    let prevMoment = moments[idx];
+    blendedMoment = (prevMoment * (n - 1.0) + sampleMoment) / n;
   }
   accum[idx] = blended;
+  moments[idx] = blendedMoment;
   textureStore(outputTexture, vec2i(gid.xy), blended);
 }
