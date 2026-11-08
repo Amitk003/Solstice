@@ -849,9 +849,26 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
 
   let primary = traceScene(rayOrigin, dir);
   let viewMode = (camera.flags >> 1u) & 3u;
+  let idx = gid.y * dims.x + gid.x;
+
+  // Adaptive skip. Once the running luminance variance is tiny the pixel
+  // has converged, so the stored color is reused instead of tracing a
+  // full multi bounce path. A small hash chance still refreshes the
+  // sample, so a settled pixel can correct a small bias over time. The
+  // primary trace above still runs, so the G-buffer and motion stay
+  // current while the camera is still.
+  var adaptiveSkip = false;
+  if (viewMode == 0u && camera.frame > 32u) {
+    let prevMoment = moments[idx];
+    let variance = max(prevMoment.y - prevMoment.x * prevMoment.x, 0.0);
+    let refresh = hash01(gid.xy, camera.frame * 29u + 77u) < 0.05;
+    adaptiveSkip = !refresh && variance < 0.001;
+  }
 
   var color = vec3f(0.02, 0.03, 0.06);
-  if (viewMode == 1u) {
+  if (adaptiveSkip) {
+    color = accum[idx].rgb;
+  } else if (viewMode == 1u) {
     if (primary.found) {
       color = normalize(primary.normal) * 0.5 + 0.5;
     } else {
@@ -867,7 +884,6 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   } else {
     color = tracePath(rayOrigin, dir, gid.xy);
   }
-  let idx = gid.y * dims.x + gid.x;
   if (primary.found) {
     gbuffer[idx] = vec4f(normalize(primary.normal), primary.t);
   } else {
@@ -879,7 +895,10 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   let n = f32(camera.frame + 1u);
   var blended = vec4f(color, 1.0);
   var blendedMoment = sampleMoment;
-  if (camera.frame > 0u) {
+  if (adaptiveSkip) {
+    blended = accum[idx];
+    blendedMoment = moments[idx];
+  } else if (camera.frame > 0u) {
     let prev = accum[idx];
     blended = (prev * (n - 1.0) + vec4f(color, 1.0)) / n;
     let prevMoment = moments[idx];

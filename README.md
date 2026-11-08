@@ -25,6 +25,7 @@ the page and look around.
   and subsurface scattering
 - One click PNG export of the tone mapped frame
 - Exposure slider for the display pass, with no sample reset
+- Adaptive sampling that skips the path trace once a pixel converges
 - Two-level acceleration: per-mesh BLAS and a top-level TLAS for instances
 
 ## Tech stack
