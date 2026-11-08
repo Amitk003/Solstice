@@ -75,6 +75,29 @@ export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation
   camera.elevation = Math.max(-1.4, Math.min(1.4, camera.elevation + deltaElevation));
 }
 
+// Move the orbit target sideways in the screen plane. Positive dx steps
+// right, positive dy steps up. The step shrinks with the orbit radius so
+// panning feels the same at any zoom.
+export function panCamera(camera: Camera, dx: number, dy: number): void {
+  const ex = camera.eye[0] ?? 0;
+  const ey = camera.eye[1] ?? 0;
+  const ez = camera.eye[2] ?? 0;
+  const tx = camera.target[0] ?? 0;
+  const ty = camera.target[1] ?? 0;
+  const tz = camera.target[2] ?? 0;
+  const fwd = vec3.create(tx - ex, ty - ey, tz - ez);
+  const fwdLen = Math.hypot(fwd[0] ?? 0, fwd[1] ?? 0, fwd[2] ?? 0) || 1;
+  fwd[0] = (fwd[0] ?? 0) / fwdLen;
+  fwd[1] = (fwd[1] ?? 0) / fwdLen;
+  fwd[2] = (fwd[2] ?? 0) / fwdLen;
+  const right = vec3.normalize(vec3.cross(fwd, camera.up));
+  const upv = vec3.cross(right, fwd);
+  const step = camera.radius * 0.08;
+  camera.target[0] = tx + (right[0] ?? 0) * dx * step + (upv[0] ?? 0) * dy * step;
+  camera.target[1] = ty + (right[1] ?? 0) * dx * step + (upv[1] ?? 0) * dy * step;
+  camera.target[2] = tz + (right[2] ?? 0) * dx * step + (upv[2] ?? 0) * dy * step;
+}
+
 export function cameraUniformData(
   camera: Camera,
   aspect: number,
