@@ -693,7 +693,10 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
 
     let sss = clamp(mat.subsurface, 0.0, 1.0);
     let wrap = sss * 0.5;
-    let translucency = sss * 0.4;
+    // When the bounce loop is on, the random walk below carries the
+    // transmitted light. Without bounces the direct backlight glow is
+    // the only transmission in the preview.
+    let translucency = select(sss * 0.4, 0.0, bounceOn);
 
     let su1 = hash01(gid, camera.frame * 256u + depth * 8u + 50u);
     let su2 = hash01(gid, camera.frame * 256u + depth * 8u + 51u);
@@ -717,6 +720,60 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
       let lu1 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 1u);
       let lu2 = hash01(gid, camera.frame * 512u + depth * 16u + li * 2u + 2u);
       radiance = radiance + throughput * sampleSphereLight(lights[li], hitPos, n, lu1, lu2, mat.baseColor, wrap, translucency);
+    }
+
+    if (mat.kind == KIND_SUBSURFACE) {
+      // Volume random walk. The path enters the wax, the interior ray
+      // finds the far side through the BVH, the segment attenuates with
+      // the absorption coefficient, and the path either exits with a
+      // diffuse direction or scatters isotropically and walks again.
+      // After at most four interior steps the path leaves through the
+      // surface and continues with an attenuated throughput.
+      var inDir = refract(dir, n, 1.0 / max(mat.ior, 0.001));
+      if (dot(inDir, inDir) < 0.000001) {
+        let entryU1 = hash01(gid, camera.frame * 256u + depth * 8u + 60u);
+        let entryU2 = hash01(gid, camera.frame * 256u + depth * 8u + 61u);
+        inDir = cosineHemisphere(-n, entryU1, entryU2);
+      }
+      var walkOrigin = hitPos - n * 0.002;
+      var walkDir = inDir;
+      var walkThroughput = vec3f(1.0);
+      var stopPath = false;
+      dir = inDir;
+      origin = hitPos;
+      for (var step = 0u; step < 4u; step = step + 1u) {
+        let exitHit = traceScene(walkOrigin, walkDir);
+        if (!exitHit.found) {
+          let fallen = throughput * walkThroughput * exp(-mat.absorption * 0.8);
+          radiance = radiance + fallen * skyColor(walkDir);
+          stopPath = true;
+          break;
+        }
+        let segment = exitHit.t;
+        walkThroughput = walkThroughput * exp(-mat.absorption * segment);
+        let exitN = normalize(exitHit.normal);
+        let exitPos = walkOrigin + walkDir * segment + exitN * 0.001;
+        let exitPick = hash01(gid, camera.frame * 256u + depth * 8u + 62u + step * 4u);
+        if (exitPick < 0.6 || step == 3u) {
+          let outU1 = hash01(gid, camera.frame * 256u + depth * 8u + 63u + step * 4u);
+          let outU2 = hash01(gid, camera.frame * 256u + depth * 8u + 64u + step * 4u);
+          dir = cosineHemisphere(exitN, outU1, outU2);
+          origin = exitPos;
+          throughput = throughput * walkThroughput;
+          break;
+        }
+        let scatterU1 = hash01(gid, camera.frame * 256u + depth * 8u + 65u + step * 4u);
+        let scatterU2 = hash01(gid, camera.frame * 256u + depth * 8u + 66u + step * 4u);
+        let z = 1.0 - 2.0 * scatterU1;
+        let r = sqrt(max(0.0, 1.0 - z * z));
+        let phi = 6.2831853 * scatterU2;
+        walkDir = normalize(vec3f(r * cos(phi), r * sin(phi), z));
+        walkOrigin = exitPos - exitN * 0.002;
+      }
+      if (stopPath) {
+        break;
+      }
+      continue;
     }
 
     if (mat.kind == KIND_MIRROR) {
