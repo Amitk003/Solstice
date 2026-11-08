@@ -32,5 +32,5 @@ exposure as the screen.
 
 - One exposure value for the whole image. There is no per channel
   balance or white point control.
-- The tone mapper is still ACES only. There is no Reinhard or filmic
-  choice yet.
+- The tone mapper is a choice of ACES, Reinhard, or linear. See
+  `docs/tonemapper-choice.md`.
