@@ -37,6 +37,7 @@ export interface RenderContext {
   setAperture: (value: number) => void;
   setFocusOffset: (value: number) => void;
   setSunAngle: (azimuthDegrees: number) => void;
+  setSunElevation: (elevationDegrees: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
@@ -770,6 +771,36 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     raf = requestAnimationFrame(frame);
   }
 
+  // Sun state shared by the azimuth and elevation setters. The direct
+  // sun comes from the camera light direction, and the environment map
+  // is rebuilt so its disk stays in the same spot.
+  let sunAzimuth = -45;
+  let sunElevation = 55;
+  const updateSun = (): void => {
+    const az = (sunAzimuth * Math.PI) / 180;
+    const el = (sunElevation * Math.PI) / 180;
+    const sunDir: [number, number, number] = [
+      Math.cos(el) * Math.cos(az),
+      Math.sin(el),
+      Math.cos(el) * Math.sin(az),
+    ];
+    camera.lightDir[0] = sunDir[0];
+    camera.lightDir[1] = sunDir[1];
+    camera.lightDir[2] = sunDir[2];
+    latestSun = sunDir;
+    frameCount = 0;
+    historyValid = false;
+    // Regenerating takes a few milliseconds, so batch rapid slider
+    // moves into one upload per short window.
+    if (!envQueued) {
+      envQueued = true;
+      window.setTimeout(() => {
+        writeEnvMap(latestSun);
+        envQueued = false;
+      }, 120);
+    }
+  };
+
   return {
     start: () => {
       if (running) {
@@ -828,32 +859,15 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       historyValid = false;
     },
     setSunAngle: (azimuthDegrees: number) => {
-      // Rotate the sun around the vertical axis at a fixed height. The
-      // direct sun comes from the camera light direction, and the
-      // environment map is rebuilt so its disk stays in the same spot.
-      const clamped = Math.max(-180, Math.min(180, azimuthDegrees));
-      const az = (clamped * Math.PI) / 180;
-      const el = (55 * Math.PI) / 180;
-      const sunDir: [number, number, number] = [
-        Math.cos(el) * Math.cos(az),
-        Math.sin(el),
-        Math.cos(el) * Math.sin(az),
-      ];
-      camera.lightDir[0] = sunDir[0];
-      camera.lightDir[1] = sunDir[1];
-      camera.lightDir[2] = sunDir[2];
-      latestSun = sunDir;
-      frameCount = 0;
-      historyValid = false;
-      // Regenerating takes a few milliseconds, so batch rapid slider
-      // moves into one upload per short window.
-      if (!envQueued) {
-        envQueued = true;
-        window.setTimeout(() => {
-          writeEnvMap(latestSun);
-          envQueued = false;
-        }, 120);
-      }
+      // Move the sun around the vertical axis. The direct sun comes
+      // from the camera light direction, and the environment map is
+      // rebuilt so its disk stays in the same spot.
+      sunAzimuth = Math.max(-180, Math.min(180, azimuthDegrees));
+      updateSun();
+    },
+    setSunElevation: (elevationDegrees: number) => {
+      sunElevation = Math.max(2, Math.min(89, elevationDegrees));
+      updateSun();
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);
