@@ -6,6 +6,7 @@ import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
+import { ENV_MAP_WIDTH, ENV_MAP_HEIGHT, makeEnvMapData, toHalfFloatData } from '../scene/envMap';
 import { makeGemInstances, instanceWorldBounds, sceneInfoUniformData } from '../scene/instances';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 import {
@@ -114,6 +115,25 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+
+  // The environment map is static, so it is created once and never resized.
+  const envSampler = device.createSampler({
+    magFilter: 'linear',
+    minFilter: 'linear',
+    addressModeU: 'repeat',
+    addressModeV: 'clamp-to-edge',
+  });
+  const envTexture = device.createTexture({
+    size: [ENV_MAP_WIDTH, ENV_MAP_HEIGHT],
+    format: 'rgba16float',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture(
+    { texture: envTexture, origin: [0, 0, 0] },
+    toHalfFloatData(makeEnvMapData()),
+    { bytesPerRow: ENV_MAP_WIDTH * 8, rowsPerImage: ENV_MAP_HEIGHT },
+    [ENV_MAP_WIDTH, ENV_MAP_HEIGHT, 1],
+  );
 
   const camera = createCamera();
 
@@ -417,6 +437,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 9, resource: { buffer: mob } },
         { binding: 10, resource: { buffer: sceneInfoBuffer } },
         { binding: 11, resource: motion.createView() },
+        { binding: 12, resource: envTexture.createView() },
+        { binding: 13, resource: envSampler },
       ],
     });
 
