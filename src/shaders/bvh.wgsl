@@ -10,8 +10,10 @@ struct Camera {
   focusDistance: f32,
   sunSize: f32,
   skyIntensity: f32,
-  _pad4: f32,
+  historyValid: u32,
   _pad5: f32,
+  // View projection of the previous frame, used to build motion vectors.
+  prevViewProj: mat4x4f,
 }
 
 struct Triangle {
@@ -100,6 +102,9 @@ struct Material {
 @group(0) @binding(9) var<storage, read_write> moments: array<vec2f>;
 // Gem BLAS root, TLAS root, and instance transforms.
 @group(0) @binding(10) var<uniform> sceneInfo: SceneInfo;
+// Previous frame UV for the primary hit. z is 1 when the reprojection is
+// inside the previous image, otherwise 0. Sky pixels stay at 0.
+@group(0) @binding(11) var motionTexture: texture_storage_2d<rgba16float, write>;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -826,4 +831,22 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   accum[idx] = blended;
   moments[idx] = blendedMoment;
   textureStore(outputTexture, vec2i(gid.xy), blended);
+
+  // Project the primary hit through the previous view projection. The
+  // temporal pass uses this to pull last frame's filtered color into this
+  // frame. Missing the scene leaves the vector invalid so the sky never
+  // smears across a camera move.
+  var motion = vec4f(0.0);
+  if (primary.found) {
+    let worldPos = rayOrigin + dir * primary.t;
+    let prevClip = camera.prevViewProj * vec4f(worldPos, 1.0);
+    if (prevClip.w > 0.0) {
+      let prevNdc = prevClip.xy / prevClip.w;
+      let prevUv = vec2f(prevNdc.x * 0.5 + 0.5, 0.5 - prevNdc.y * 0.5);
+      if (all(prevUv >= vec2f(0.0)) && all(prevUv <= vec2f(1.0))) {
+        motion = vec4f(prevUv, 1.0, 0.0);
+      }
+    }
+  }
+  textureStore(motionTexture, vec2i(gid.xy), motion);
 }

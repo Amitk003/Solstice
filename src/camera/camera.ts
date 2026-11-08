@@ -9,6 +9,8 @@ export interface Camera {
   near: number;
   far: number;
   aspect: number;
+  viewProj: Float32Array;
+  prevViewProj: Float32Array;
   invViewProj: Float32Array;
   radius: number;
   azimuth: number;
@@ -29,6 +31,8 @@ export function createCamera(): Camera {
     near: 0.1,
     far: 100,
     aspect: 1,
+    viewProj: mat4.create(),
+    prevViewProj: mat4.create(),
     invViewProj: mat4.create(),
     radius: 4,
     azimuth: 0.6,
@@ -39,6 +43,7 @@ export function createCamera(): Camera {
     skyIntensity: 1,
   };
   updateCamera(camera, 1);
+  camera.prevViewProj.set(camera.viewProj);
   return camera;
 }
 
@@ -55,6 +60,7 @@ export function updateCamera(camera: Camera, aspect: number): void {
   const view = mat4.lookAt(camera.eye, camera.target, camera.up);
   const proj = mat4.perspective(camera.fovYRadians, aspect, camera.near, camera.far);
   const viewProj = mat4.multiply(proj, view);
+  camera.viewProj.set(viewProj);
   mat4.inverse(viewProj, camera.invViewProj);
 
   // Focus on the orbit target so the center of the scene stays sharp.
@@ -74,10 +80,16 @@ export function cameraUniformData(
   aspect: number,
   frame: number,
   flags: number,
+  historyValid: boolean,
 ): Float32Array {
+  // Keep the view projection from the frame that just finished so the trace
+  // shader can reproject this frame's hits into the previous image.
+  camera.prevViewProj.set(camera.viewProj);
   updateCamera(camera, aspect);
   const light = vec3.normalize(camera.lightDir);
-  const data = new Float32Array(32); // mat4 + eye + pad + light + pad + frame + flags + aperture + focus + sun size + pads
+  // mat4 + eye + pad + light + pad + frame + flags + aperture + focus +
+  // sun size + sky + history flag + pad + previous view projection.
+  const data = new Float32Array(48);
   data.set(camera.invViewProj, 0);
   data[16] = camera.eye[0] ?? 0;
   data[17] = camera.eye[1] ?? 0;
@@ -93,7 +105,8 @@ export function cameraUniformData(
   data[27] = camera.focusDistance;
   data[28] = camera.sunSize;
   data[29] = camera.skyIntensity;
-  data[30] = 0;
+  new Uint32Array(data.buffer)[30] = historyValid ? 1 : 0;
   data[31] = 0;
+  data.set(camera.prevViewProj, 32);
   return data;
 }
