@@ -18,7 +18,7 @@ the page and look around.
 
 - WebGPU compute pipelines for ray generation, tracing, shading, and display
 - GPU-built BVH (morton codes + radix sort + linear BVH) for fast tracing
-- SVGF denoiser for noisy low-sample frames
+- Edge aware a-trous denoiser guided by normals, depth, and variance
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
 - One click PNG export of the tone mapped frame
