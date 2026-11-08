@@ -16,15 +16,19 @@ one buffer.
 
 ## Layout
 
-Each light is 32 bytes:
+Each light is 48 bytes:
 
 - position: 3 floats
 - radius: 1 float
 - color: 3 floats
-- pad: 1 float
+- kind: 1 float
+- halfWidth: 1 float
+- halfDepth: 1 float
+- two pads
 
-The padding keeps the color aligned to 16 bytes, which is what the
-storage buffer rules want.
+The padding keeps the whole light aligned to 16 bytes, which is what
+the storage buffer rules want. The kind field selects the shape: 0 is
+a sphere with radius, 1 is a horizontal rectangle with half extents.
 
 ## Why it matters
 
