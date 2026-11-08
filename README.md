@@ -24,6 +24,7 @@ the page and look around.
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
 - One click PNG export of the tone mapped frame
+- Exposure slider for the display pass, with no sample reset
 - Two-level acceleration: per-mesh BLAS and a top-level TLAS for instances
 
 ## Tech stack
