@@ -86,7 +86,7 @@ async function main(): Promise<void> {
     window.setInterval(() => {
       const stats = context.getStats();
       const mode = modeNames[viewMode] ?? 'shaded';
-      status.textContent = `Solstice | ${mode} | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | drag to orbit`;
+      status.textContent = `Solstice | ${mode} | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | bvh ${stats.bvh} | drag to orbit`;
     }, 500);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

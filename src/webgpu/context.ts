@@ -11,6 +11,7 @@ import { buildGpuBvh, triangleSceneBounds } from '../bvh/gpuBuild';
 export interface RenderStats {
   samples: number;
   fps: number;
+  bvh: string;
 }
 
 export interface RenderContext {
@@ -143,6 +144,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   let bvhNodesBuffer: GPUBuffer;
   let triIndicesBuffer: GPUBuffer;
+  let bvhSource = 'gpu';
   try {
     const bounds = triangleSceneBounds(tris);
     const gpuBvh = await buildGpuBvh(device, trianglesBuffer, tris.length, bounds);
@@ -150,6 +152,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     triIndicesBuffer = gpuBvh.triIndicesBuffer;
   } catch (error) {
     console.warn('GPU BVH build failed. Falling back to the CPU build.', error);
+    bvhSource = 'cpu';
     const bvh = buildBvh(tris);
     const nodesData = nodesToBuffer(bvh.nodes);
     bvhNodesBuffer = device.createBuffer({
@@ -492,7 +495,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         cancelAnimationFrame(raf);
       }
     },
-    getStats: () => ({ samples: frameCount, fps }),
+    getStats: () => ({ samples: frameCount, fps, bvh: bvhSource }),
     captureImage,
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
