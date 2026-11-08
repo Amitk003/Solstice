@@ -80,7 +80,9 @@ struct Light {
   _pad1: f32,
 }
 
-// Layout must match materialsStorageData in materials.ts.
+// Layout must match materialsStorageData in materials.ts. The last
+// field holds detail strength as float bits in a u32, so the shader
+// reads it with a bitcast.
 struct Material {
   baseColor: vec3f,
   roughness: f32,
@@ -89,7 +91,7 @@ struct Material {
   kind: u32,
   emission: f32,
   subsurface: f32,
-  _pad1: u32,
+  detail: u32,
 }
 
 @group(0) @binding(0) var<uniform> camera: Camera;
@@ -607,6 +609,30 @@ fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
   return normalize(tangent * x + bitangent * y + n * z);
 }
 
+// Procedural surface detail. It bends the normal with a cheap world
+// space ripple, so large flat surfaces stop looking perfectly smooth.
+// Strength comes from the material detail field, so 0 keeps the mesh
+// normal untouched. A tangent frame is built from the normal itself,
+// so no UVs or texture data are needed.
+fn applyDetail(n: vec3f, pos: vec3f, strength: f32) -> vec3f {
+  if (strength <= 0.0) {
+    return n;
+  }
+  var helper = vec3f(0.0, 1.0, 0.0);
+  if (abs(n.y) > 0.9) {
+    helper = vec3f(1.0, 0.0, 0.0);
+  }
+  let tangent = normalize(cross(n, helper));
+  let bitangent = normalize(cross(n, tangent));
+  let p = pos * 6.0;
+  let ripple1 = sin(p.x + sin(p.z * 1.3) * 2.0) * 0.6
+    + sin(p.y * 1.7 + sin(p.x * 0.9) * 2.0) * 0.4;
+  let ripple2 = sin(p.z * 1.1 + sin(p.y * 1.4) * 2.0) * 0.6
+    + sin(p.x * 1.3 + sin(p.z * 0.8) * 2.0) * 0.4;
+  let bend = (tangent * ripple1 + bitangent * ripple2) * strength;
+  return normalize(n + bend);
+}
+
 fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   var helper = vec3f(0.0, 1.0, 0.0);
   if (abs(n.y) > 0.9) {
@@ -680,9 +706,10 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
       throughput = throughput * exp(-medium * hit.t);
     }
 
-    let n = normalize(hit.normal);
-    let hitPos = origin + dir * hit.t + n * 0.001;
     let mat = materials[hit.material];
+    let surfPos = origin + dir * hit.t;
+    let n = applyDetail(normalize(hit.normal), surfPos, bitcast<f32>(mat.detail));
+    let hitPos = surfPos + n * 0.001;
 
     if (isEmissive(hit.material)) {
       radiance = radiance + throughput * emissiveColor(hit.material);
@@ -906,7 +933,13 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     color = tracePath(rayOrigin, dir, gid.xy);
   }
   if (primary.found) {
-    gbuffer[idx] = vec4f(normalize(primary.normal), primary.t);
+    let primPos = rayOrigin + dir * primary.t;
+    let primN = applyDetail(
+      normalize(primary.normal),
+      primPos,
+      bitcast<f32>(materials[primary.material].detail),
+    );
+    gbuffer[idx] = vec4f(primN, primary.t);
   } else {
     gbuffer[idx] = vec4f(0.0);
   }
