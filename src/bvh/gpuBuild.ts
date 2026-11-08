@@ -6,9 +6,22 @@ export interface SceneBounds {
   max: [number, number, number];
 }
 
-export interface GpuBvhResult {
+export interface GpuBvhTarget {
+  // Shared scene buffers. Several meshes can build into the same buffers.
+  trianglesBuffer: GPUBuffer;
   nodesBuffer: GPUBuffer;
   triIndicesBuffer: GPUBuffer;
+  // Triangle range inside trianglesBuffer.
+  triangleBase: number;
+  triangleCount: number;
+  // Node range inside nodesBuffer.
+  nodeBase: number;
+  // Index range inside triIndicesBuffer.
+  triIndicesBase: number;
+  bounds: SceneBounds;
+}
+
+export interface GpuBvhResult {
   nodeCount: number;
   paddedCount: number;
 }
@@ -33,7 +46,7 @@ export function triangleSceneBounds(tris: TriangleData[]): SceneBounds {
   return { min, max };
 }
 
-function nextPowerOfTwo(value: number): number {
+export function nextPowerOfTwo(value: number): number {
   let result = 1;
   while (result < value) {
     result *= 2;
@@ -41,23 +54,31 @@ function nextPowerOfTwo(value: number): number {
   return result;
 }
 
-const PARAMS_BYTES = 64;
+export function bvhPaddedCount(triangleCount: number): number {
+  return nextPowerOfTwo(Math.max(1, triangleCount));
+}
+
+export function bvhNodeCount(triangleCount: number): number {
+  return bvhPaddedCount(triangleCount) * 2 - 1;
+}
+
+const PARAMS_BYTES = 80;
 
 export async function buildGpuBvh(
   device: GPUDevice,
-  trianglesBuffer: GPUBuffer,
-  triangleCount: number,
-  bounds: SceneBounds,
+  target: GpuBvhTarget,
 ): Promise<GpuBvhResult> {
+  const { triangleCount, triangleBase, nodeBase, triIndicesBase, bounds } = target;
   if (triangleCount === 0) {
     throw new Error('Cannot build a BVH with no triangles.');
   }
 
-  const paddedCount = nextPowerOfTwo(triangleCount);
+  const paddedCount = bvhPaddedCount(triangleCount);
   const nodeCount = paddedCount * 2 - 1;
 
   device.pushErrorScope('validation');
   let result: GpuBvhResult;
+  const transient: GPUBuffer[] = [];
 
   try {
     const shaderModule = device.createShaderModule({ code: buildSource });
@@ -73,6 +94,7 @@ export async function buildGpuBvh(
         { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
         { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
+        { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
       ],
     });
     const pipelineLayout = device.createPipelineLayout({
@@ -90,18 +112,16 @@ export async function buildGpuBvh(
     const leafPipeline = makePipeline('leafFill');
     const internalPipeline = makePipeline('internalLevel');
 
+    // Sort scratch. The shared scene buffers hold the final result.
     const keysBuffer = device.createBuffer({
       size: paddedCount * 4,
       usage: GPUBufferUsage.STORAGE,
     });
-    const triIndicesBuffer = device.createBuffer({
+    const valuesBuffer = device.createBuffer({
       size: paddedCount * 4,
       usage: GPUBufferUsage.STORAGE,
     });
-    const nodesBuffer = device.createBuffer({
-      size: nodeCount * 48,
-      usage: GPUBufferUsage.STORAGE,
-    });
+    transient.push(keysBuffer, valuesBuffer);
 
     function writeParams(fields: {
       levelStart?: number;
@@ -113,6 +133,7 @@ export async function buildGpuBvh(
         size: PARAMS_BYTES,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
+      transient.push(buffer);
       const data = new ArrayBuffer(PARAMS_BYTES);
       const floats = new Float32Array(data);
       const uints = new Uint32Array(data);
@@ -130,8 +151,12 @@ export async function buildGpuBvh(
       uints[11] = fields.levelCount ?? 0;
       uints[12] = fields.sortK ?? 0;
       uints[13] = fields.sortJ ?? 0;
-      uints[14] = 0;
-      uints[15] = 0;
+      uints[14] = nodeBase;
+      uints[15] = triIndicesBase;
+      uints[16] = triangleBase;
+      uints[17] = 0;
+      uints[18] = 0;
+      uints[19] = 0;
       device.queue.writeBuffer(buffer, 0, data);
       return buffer;
     }
@@ -141,10 +166,11 @@ export async function buildGpuBvh(
         layout: bindGroupLayout,
         entries: [
           { binding: 0, resource: { buffer: paramsBuffer } },
-          { binding: 1, resource: { buffer: trianglesBuffer } },
+          { binding: 1, resource: { buffer: target.trianglesBuffer } },
           { binding: 2, resource: { buffer: keysBuffer } },
-          { binding: 3, resource: { buffer: triIndicesBuffer } },
-          { binding: 4, resource: { buffer: nodesBuffer } },
+          { binding: 3, resource: { buffer: valuesBuffer } },
+          { binding: 4, resource: { buffer: target.nodesBuffer } },
+          { binding: 5, resource: { buffer: target.triIndicesBuffer } },
         ],
       });
     }
@@ -185,14 +211,20 @@ export async function buildGpuBvh(
     }
 
     device.queue.submit([encoder.finish()]);
-    result = { nodesBuffer, triIndicesBuffer, nodeCount, paddedCount };
+    result = { nodeCount, paddedCount };
   } catch (error) {
     await device.popErrorScope();
+    for (const buffer of transient) {
+      buffer.destroy();
+    }
     throw error;
   }
 
   await device.queue.onSubmittedWorkDone();
   const deviceError = await device.popErrorScope();
+  for (const buffer of transient) {
+    buffer.destroy();
+  }
   if (deviceError) {
     throw new Error(`GPU BVH build failed: ${deviceError.message}`);
   }

@@ -4,9 +4,13 @@
 // 3. leafFill: one leaf node per sorted triangle.
 // 4. internalLevel: one level of parent nodes, bottom up.
 //
-// The tree uses heap layout over the padded leaf count. Internal nodes are
-// 0 .. paddedCount - 2 and leaves are paddedCount - 1 .. 2 * paddedCount - 2.
-// Node 0 is always the root. Children of internal node i are 2i+1 and 2i+2.
+// The build writes into shared scene buffers using base offsets, so several
+// meshes can live in one node buffer and one triangle index buffer.
+//
+// Within one mesh the tree uses heap layout over the padded leaf count.
+// Internal nodes are nodeBase .. nodeBase + paddedCount - 2. Leaves are
+// nodeBase + paddedCount - 1 .. nodeBase + 2 * paddedCount - 2. Children of
+// node i are 2i+1 and 2i+2, stored as absolute indices.
 
 struct BuildParams {
   sceneMin: vec3f,
@@ -19,8 +23,12 @@ struct BuildParams {
   levelCount: u32,
   sortK: u32,
   sortJ: u32,
+  nodeBase: u32,
+  valueBase: u32,
+  triangleBase: u32,
   _pad2: u32,
   _pad3: u32,
+  _pad4: u32,
 }
 
 struct Triangle {
@@ -55,6 +63,7 @@ struct BvhNode {
 @group(0) @binding(2) var<storage, read_write> keys: array<u32>;
 @group(0) @binding(3) var<storage, read_write> values: array<u32>;
 @group(0) @binding(4) var<storage, read_write> nodes: array<BvhNode>;
+@group(0) @binding(5) var<storage, read_write> triIndices: array<u32>;
 
 // Spread the low 10 bits of v so there are two zero bits between each.
 fn expandBits(v: u32) -> u32 {
@@ -72,8 +81,8 @@ fn morton(@builtin(global_invocation_id) gid: vec3u) {
   if (i >= params.paddedCount) {
     return;
   }
-  let triangleIndex = min(i, params.triangleCount - 1u);
-  let tri = triangles[triangleIndex];
+  let localIndex = min(i, params.triangleCount - 1u);
+  let tri = triangles[params.triangleBase + localIndex];
   let center = (tri.v0 + tri.v1 + tri.v2) / 3.0;
   let extent = max(params.sceneMax - params.sceneMin, vec3f(0.00001));
   let normalized = clamp((center - params.sceneMin) / extent, vec3f(0.0), vec3f(1.0));
@@ -88,7 +97,7 @@ fn morton(@builtin(global_invocation_id) gid: vec3u) {
     code = 0xffffffffu;
   }
   keys[i] = code;
-  values[i] = triangleIndex;
+  values[i] = localIndex;
 }
 
 @compute @workgroup_size(64, 1, 1)
@@ -126,15 +135,17 @@ fn leafFill(@builtin(global_invocation_id) gid: vec3u) {
   if (i >= params.paddedCount) {
     return;
   }
-  let tri = triangles[values[i]];
+  let localIndex = values[i];
+  let tri = triangles[params.triangleBase + localIndex];
   var node: BvhNode;
   node.min = min(tri.v0, min(tri.v1, tri.v2));
   node.max = max(tri.v0, max(tri.v1, tri.v2));
   node.left = -1;
   node.right = -1;
-  node.first = i;
+  node.first = params.valueBase + i;
   node.count = 1u;
-  nodes[params.paddedCount - 1u + i] = node;
+  nodes[params.nodeBase + params.paddedCount - 1u + i] = node;
+  triIndices[params.valueBase + i] = params.triangleBase + localIndex;
 }
 
 @compute @workgroup_size(64, 1, 1)
@@ -143,17 +154,17 @@ fn internalLevel(@builtin(global_invocation_id) gid: vec3u) {
   if (offset >= params.levelCount) {
     return;
   }
-  let index = params.levelStart + offset;
-  let leftIndex = index * 2u + 1u;
-  let rightIndex = index * 2u + 2u;
-  let leftNode = nodes[leftIndex];
-  let rightNode = nodes[rightIndex];
+  let localIndex = params.levelStart + offset;
+  let leftLocal = localIndex * 2u + 1u;
+  let rightLocal = localIndex * 2u + 2u;
+  let leftNode = nodes[params.nodeBase + leftLocal];
+  let rightNode = nodes[params.nodeBase + rightLocal];
   var node: BvhNode;
   node.min = min(leftNode.min, rightNode.min);
   node.max = max(leftNode.max, rightNode.max);
-  node.left = i32(leftIndex);
-  node.right = i32(rightIndex);
+  node.left = i32(params.nodeBase + leftLocal);
+  node.right = i32(params.nodeBase + rightLocal);
   node.first = 0u;
   node.count = 0u;
-  nodes[index] = node;
+  nodes[params.nodeBase + localIndex] = node;
 }
