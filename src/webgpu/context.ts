@@ -6,6 +6,7 @@ import { makeTriangles, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
+import { buildGpuBvh, triangleSceneBounds } from '../bvh/gpuBuild';
 
 export interface RenderStats {
   samples: number;
@@ -140,19 +141,28 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   device.queue.writeBuffer(trianglesBuffer, 0, triData);
 
-  const bvh = buildBvh(tris);
-  const nodesBuffer = nodesToBuffer(bvh.nodes);
-  const bvhNodesBuffer = device.createBuffer({
-    size: nodesBuffer.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(bvhNodesBuffer, 0, nodesBuffer);
-
-  const triIndicesBuffer = device.createBuffer({
-    size: bvh.triangleIndices.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-  device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
+  let bvhNodesBuffer: GPUBuffer;
+  let triIndicesBuffer: GPUBuffer;
+  try {
+    const bounds = triangleSceneBounds(tris);
+    const gpuBvh = await buildGpuBvh(device, trianglesBuffer, tris.length, bounds);
+    bvhNodesBuffer = gpuBvh.nodesBuffer;
+    triIndicesBuffer = gpuBvh.triIndicesBuffer;
+  } catch (error) {
+    console.warn('GPU BVH build failed. Falling back to the CPU build.', error);
+    const bvh = buildBvh(tris);
+    const nodesData = nodesToBuffer(bvh.nodes);
+    bvhNodesBuffer = device.createBuffer({
+      size: nodesData.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(bvhNodesBuffer, 0, nodesData);
+    triIndicesBuffer = device.createBuffer({
+      size: bvh.triangleIndices.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
+  }
 
   const lightData = lightsStorageData(defaultLights());
   const lightsBuffer = device.createBuffer({
