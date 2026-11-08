@@ -53,6 +53,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const exposureRange = document.querySelector<HTMLInputElement>('#exposureRange');
+    if (exposureRange) {
+      exposureRange.addEventListener('input', () => {
+        context.setExposure(Number(exposureRange.value));
+      });
+    }
+
     const saveButton = document.querySelector<HTMLButtonElement>('#saveButton');
     if (saveButton) {
       saveButton.addEventListener('click', async () => {
