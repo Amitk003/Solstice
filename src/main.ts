@@ -67,6 +67,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const keyLightRange = document.querySelector<HTMLInputElement>('#keyLightRange');
+    if (keyLightRange) {
+      keyLightRange.addEventListener('input', () => {
+        context.setKeyLightIntensity(Number(keyLightRange.value));
+      });
+    }
+
     const skyRange = document.querySelector<HTMLInputElement>('#skyRange');
     if (skyRange) {
       skyRange.addEventListener('input', () => {
