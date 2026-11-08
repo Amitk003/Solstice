@@ -36,6 +36,7 @@ export interface RenderContext {
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
   setExposure: (value: number) => void;
+  setToneMode: (mode: number) => void;
 }
 
 async function encodePng(
@@ -298,13 +299,21 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     minFilter: 'linear',
   });
 
-  // One exposure value for the display pass. It only changes the tone map,
-  // never the traced radiance, so it needs no sample reset.
+  // Display settings for the tone mapper. They only change the tone map,
+  // never the traced radiance, so they need no sample reset.
   const displayParamsBuffer = device.createBuffer({
     size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(displayParamsBuffer, 0, new Float32Array([1.2, 0, 0, 0]));
+  let exposureValue = 1.2;
+  let toneMode = 0;
+  const writeDisplayParams = (): void => {
+    const data = new Float32Array(4);
+    data[0] = exposureValue;
+    new Uint32Array(data.buffer)[1] = toneMode;
+    device.queue.writeBuffer(displayParamsBuffer, 0, data);
+  };
+  writeDisplayParams();
 
   let outputTexture: GPUTexture | null = null;
   let motionTexture: GPUTexture | null = null;
@@ -765,8 +774,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       historyValid = false;
     },
     setExposure: (value: number) => {
-      const clamped = Math.max(0.1, Math.min(4, value));
-      device.queue.writeBuffer(displayParamsBuffer, 0, new Float32Array([clamped, 0, 0, 0]));
+      exposureValue = Math.max(0.1, Math.min(4, value));
+      writeDisplayParams();
+    },
+    setToneMode: (mode: number) => {
+      toneMode = Math.max(0, Math.min(2, Math.floor(mode)));
+      writeDisplayParams();
     },
   };
 }

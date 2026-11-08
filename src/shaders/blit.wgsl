@@ -14,10 +14,11 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
   return out;
 }
 
-// One exposure value, padded to 16 bytes for the uniform buffer.
+// Display settings, padded to 16 bytes for the uniform buffer. mode
+// selects the tone mapper: 0 is ACES, 1 is Reinhard, 2 is linear.
 struct Params {
   exposure: f32,
-  _pad0: u32,
+  mode: u32,
   _pad1: u32,
   _pad2: u32,
 }
@@ -35,10 +36,22 @@ fn aces(x: vec3f) -> vec3f {
   return clamp((x * (a * x + b)) / (x * (c * x + d) + e), vec3f(0.0), vec3f(1.0));
 }
 
+fn reinhard(x: vec3f) -> vec3f {
+  return clamp(x / (vec3f(1.0) + x), vec3f(0.0), vec3f(1.0));
+}
+
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4f {
   let hdr = textureSample(tex, samp, in.uv).rgb;
-  let mapped = aces(hdr * params.exposure);
+  let scaled = hdr * params.exposure;
+  var mapped: vec3f;
+  if (params.mode == 1u) {
+    mapped = reinhard(scaled);
+  } else if (params.mode == 2u) {
+    mapped = clamp(scaled, vec3f(0.0), vec3f(1.0));
+  } else {
+    mapped = aces(scaled);
+  }
   let gamma = pow(mapped, vec3f(1.0 / 2.2));
   return vec4f(gamma, 1.0);
 }
