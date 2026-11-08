@@ -37,6 +37,7 @@ export interface RenderContext {
   setDenoiseEnabled: (enabled: boolean) => void;
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
+  setCameraPreset: (preset: number) => void;
 }
 
 async function encodePng(
@@ -780,6 +781,24 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setToneMode: (mode: number) => {
       toneMode = Math.max(0, Math.min(2, Math.floor(mode)));
       writeDisplayParams();
+    },
+    setCameraPreset: (preset: number) => {
+      // A camera jump is a camera move, so the trace accumulation resets
+      // but the temporal history survives. That keeps the jump clean.
+      const views = [
+        { radius: 4, azimuth: 0.6, elevation: 0.5 },
+        { radius: 4, azimuth: 0, elevation: 0.2 },
+        { radius: 5.5, azimuth: 0.6, elevation: 1.35 },
+        { radius: 6, azimuth: 2.2, elevation: -0.35 },
+      ];
+      const view = views[Math.max(0, Math.min(views.length - 1, Math.floor(preset)))];
+      if (!view) {
+        return;
+      }
+      camera.radius = view.radius;
+      camera.azimuth = view.azimuth;
+      camera.elevation = view.elevation;
+      frameCount = 0;
     },
   };
 }

@@ -9,6 +9,9 @@ target.
 - Pointer move changes azimuth and elevation.
 - Pointer up stops dragging.
 
+The panel also has four preset buttons that jump to saved views. See
+`docs/camera-presets.md`.
+
 ## Notes
 
 The camera still updates its matrices every frame. The user interaction only
