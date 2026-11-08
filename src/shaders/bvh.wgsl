@@ -40,6 +40,30 @@ struct BvhNode {
   count: u32,
 }
 
+// One instanced mesh transform. Keep MAX_INSTANCES in sync with
+// src/scene/instances.ts.
+const MAX_INSTANCES = 8u;
+
+struct Instance {
+  inverse: mat4x4f,
+  material: u32,
+  _pad0: u32,
+  _pad1: u32,
+  _pad2: u32,
+}
+
+// Scene wide data for the two level BVH. The gem BLAS and the instance TLAS
+// live inside the same node and triangle index buffers as the static BVH.
+// Instances use a fixed uniform array because the trace shader already uses
+// all eight storage buffers allowed by default.
+struct SceneInfo {
+  gemRoot: u32,
+  tlasRoot: u32,
+  instanceCount: u32,
+  _pad0: u32,
+  instances: array<Instance, MAX_INSTANCES>,
+}
+
 // Layout must match lightsStorageData in lights.ts.
 struct Light {
   position: vec3f,
@@ -74,6 +98,8 @@ struct Material {
 // Running mean of luminance and squared luminance per pixel. Gives the
 // denoiser a variance estimate for each pixel.
 @group(0) @binding(9) var<storage, read_write> moments: array<vec2f>;
+// Gem BLAS root, TLAS root, and instance transforms.
+@group(0) @binding(10) var<uniform> sceneInfo: SceneInfo;
 
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
@@ -220,6 +246,228 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
   return result;
 }
 
+struct BlasHit {
+  found: bool,
+  t: f32,
+  normal: vec3f,
+}
+
+// Closest hit inside one mesh BLAS. All node and triangle indices are
+// absolute, so the same shared buffers work for every mesh.
+fn traceBlas(origin: vec3f, dir: vec3f, root: u32) -> BlasHit {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = root;
+  var result: BlasHit;
+  result.found = false;
+  result.t = 1000000.0;
+  result.normal = vec3f(0.0, 0.0, 1.0);
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        let tri = triangles[ti];
+        let tuv = intersectTriangle(origin, dir, tri);
+        if (tuv.x > 0.0 && tuv.x < result.t) {
+          result.t = tuv.x;
+          result.found = true;
+          let w = 1.0 - tuv.y - tuv.z;
+          result.normal = normalize(tri.n0 * w + tri.n1 * tuv.y + tri.n2 * tuv.z);
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return result;
+}
+
+struct InstanceHit {
+  found: bool,
+  t: f32,
+  normal: vec3f,
+  material: u32,
+}
+
+// Trace the instance TLAS. Each leaf stores one instance index. Rays are
+// moved into mesh local space before the BLAS is traversed, and the hit
+// normal is moved back to world space with the inverse transpose.
+fn traceInstances(origin: vec3f, dir: vec3f) -> InstanceHit {
+  var result: InstanceHit;
+  result.found = false;
+  result.t = 1000000.0;
+  result.normal = vec3f(0.0, 0.0, 1.0);
+  result.material = 0u;
+  if (sceneInfo.instanceCount == 0u) {
+    return result;
+  }
+
+  var stack: array<u32, 32>;
+  var sp = 1u;
+  stack[0] = sceneInfo.tlasRoot;
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      let inst = sceneInfo.instances[node.first];
+      let localOrigin = (inst.inverse * vec4f(origin, 1.0)).xyz;
+      let localDir = (inst.inverse * vec4f(dir, 0.0)).xyz;
+      let hit = traceBlas(localOrigin, localDir, sceneInfo.gemRoot);
+      if (hit.found && hit.t < result.t) {
+        let basis = mat3x3f(inst.inverse[0].xyz, inst.inverse[1].xyz, inst.inverse[2].xyz);
+        var worldNormal = normalize(transpose(basis) * hit.normal);
+        if (dot(worldNormal, dir) > 0.0) {
+          worldNormal = -worldNormal;
+        }
+        result.found = true;
+        result.t = hit.t;
+        result.normal = worldNormal;
+        result.material = inst.material;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return result;
+}
+
+fn isOccludedBlas(origin: vec3f, dir: vec3f, root: u32, maxT: f32) -> bool {
+  var stack: array<u32, 64>;
+  var sp = 1u;
+  stack[0] = root;
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      var k = 0u;
+      loop {
+        if (k >= node.count) {
+          break;
+        }
+        let ti = triIndices[node.first + k];
+        let shadowT = intersectTriangle(origin, dir, triangles[ti]).x;
+        if (shadowT > 0.0 && shadowT < maxT) {
+          return true;
+        }
+        k = k + 1u;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return false;
+}
+
+fn isOccludedInstances(origin: vec3f, dir: vec3f, maxT: f32) -> bool {
+  if (sceneInfo.instanceCount == 0u) {
+    return false;
+  }
+
+  var stack: array<u32, 32>;
+  var sp = 1u;
+  stack[0] = sceneInfo.tlasRoot;
+  loop {
+    if (sp == 0u) {
+      break;
+    }
+    sp = sp - 1u;
+    let ni = stack[sp];
+    let node = nodes[ni];
+    if (!intersectAabb(origin, dir, node.min, node.max)) {
+      continue;
+    }
+    if (node.count > 0u) {
+      let inst = sceneInfo.instances[node.first];
+      let localOrigin = (inst.inverse * vec4f(origin, 1.0)).xyz;
+      let localDir = (inst.inverse * vec4f(dir, 0.0)).xyz;
+      if (isOccludedBlas(localOrigin, localDir, sceneInfo.gemRoot, maxT)) {
+        return true;
+      }
+    } else {
+      if (node.right >= 0) {
+        stack[sp] = u32(node.right);
+        sp = sp + 1u;
+      }
+      if (node.left >= 0) {
+        stack[sp] = u32(node.left);
+        sp = sp + 1u;
+      }
+    }
+  }
+  return false;
+}
+
+fn isOccludedScene(origin: vec3f, dir: vec3f, maxT: f32) -> bool {
+  if (isOccluded(origin, dir, maxT)) {
+    return true;
+  }
+  return isOccludedInstances(origin, dir, maxT);
+}
+
+// Closest hit over the static BVH and the instance TLAS.
+fn traceScene(origin: vec3f, dir: vec3f) -> Hit {
+  var result = traceClosest(origin, dir);
+  let instHit = traceInstances(origin, dir);
+  if (instHit.found && (!result.found || instHit.t < result.t)) {
+    result.found = true;
+    result.t = instHit.t;
+    result.normal = instHit.normal;
+    result.tri = 0u;
+    result.uv = vec2f(0.0);
+    result.material = instHit.material;
+  }
+  return result;
+}
+
 fn hash01(pixel: vec2u, salt: u32) -> f32 {
   var s = pixel.x * 1973u + pixel.y * 9277u + salt * 26699u + 1u;
   s = (s ^ (s >> 15u)) * 2246822519u;
@@ -276,7 +524,7 @@ fn sampleSphereLight(light: Light, hitPos: vec3f, n: vec3f, u1: f32, u2: f32, al
   if (cosL <= 0.0) {
     return vec3f(0.0);
   }
-  if (isOccluded(hitPos, ln, dist - 0.01)) {
+  if (isOccludedScene(hitPos, ln, dist - 0.01)) {
     return vec3f(0.0);
   }
   let area = 4.0 * 3.14159265 * light.radius * light.radius;
@@ -325,16 +573,16 @@ fn ambientOcclusion(pos: vec3f, n: vec3f) -> f32 {
   let bitangent = normalize(cross(n, tangent));
   let origin = pos + n * 0.002;
   var blocked = 0.0;
-  if (isOccluded(origin, normalize(n + tangent), 1000000.0)) {
+  if (isOccludedScene(origin, normalize(n + tangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n - tangent), 1000000.0)) {
+  if (isOccludedScene(origin, normalize(n - tangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n + bitangent), 1000000.0)) {
+  if (isOccludedScene(origin, normalize(n + bitangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
-  if (isOccluded(origin, normalize(n - bitangent), 1000000.0)) {
+  if (isOccludedScene(origin, normalize(n - bitangent), 1000000.0)) {
     blocked = blocked + 1.0;
   }
   return 1.0 - (blocked / 4.0) * 0.7;
@@ -378,7 +626,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
   let bounceOn = (camera.flags & 1u) != 0u;
 
   for (var depth = 0u; depth < MAX_BOUNCES; depth = depth + 1u) {
-    let hit = traceClosest(origin, dir);
+    let hit = traceScene(origin, dir);
     if (!hit.found) {
       radiance = radiance + throughput * skyColor(dir) * exp(-medium * 40.0);
       break;
@@ -425,7 +673,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     let su2 = hash01(gid, camera.frame * 256u + depth * 8u + 51u);
     let sunDir = jitterDirection(sun, camera.sunSize, su1, su2);
     var diffuse = max(dot(n, sunDir), 0.0);
-    if (diffuse > 0.0 && isOccluded(hitPos, sunDir, 1000000.0)) {
+    if (diffuse > 0.0 && isOccludedScene(hitPos, sunDir, 1000000.0)) {
       diffuse = 0.0;
     }
     radiance = radiance + throughput * mat.baseColor * (0.05 + 0.95 * diffuse) * 1.6 * 0.75;
@@ -512,7 +760,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     dir = normalize(focusPoint - rayOrigin);
   }
 
-  let primary = traceClosest(rayOrigin, dir);
+  let primary = traceScene(rayOrigin, dir);
   let viewMode = (camera.flags >> 1u) & 3u;
 
   var color = vec3f(0.02, 0.03, 0.06);
