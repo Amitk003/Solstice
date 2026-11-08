@@ -60,6 +60,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const sunHeightRange = document.querySelector<HTMLInputElement>('#sunHeightRange');
+    if (sunHeightRange) {
+      sunHeightRange.addEventListener('input', () => {
+        context.setSunElevation(Number(sunHeightRange.value));
+      });
+    }
+
     const skyRange = document.querySelector<HTMLInputElement>('#skyRange');
     if (skyRange) {
       skyRange.addEventListener('input', () => {
