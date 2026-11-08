@@ -2,11 +2,18 @@ import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import denoiseSource from '../shaders/denoise.wgsl?raw';
 import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
-import { makeTriangles, trianglesStorageData } from '../scene/triangles';
+import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
+import { makeGemInstances, instanceWorldBounds, sceneInfoUniformData } from '../scene/instances';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
-import { buildGpuBvh, triangleSceneBounds } from '../bvh/gpuBuild';
+import {
+  buildGpuBvh,
+  triangleSceneBounds,
+  bvhNodeCount,
+  bvhPaddedCount,
+} from '../bvh/gpuBuild';
+import { buildInstanceTlas } from '../bvh/tlas';
 
 export interface RenderStats {
   samples: number;
@@ -134,38 +141,91 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let fps = 0;
   let lastTime = 0;
 
+  // Static scene plus a unit gem mesh that the instance TLAS reuses. All
+  // meshes share one triangle buffer, one node buffer, and one index buffer
+  // to stay inside the storage buffer limit.
   const tris = makeTriangles();
-  const triData = trianglesStorageData(tris);
+  const gemTris = makeGemMesh();
+  const allTris = [...tris, ...gemTris];
+  const triData = trianglesStorageData(allTris);
   const trianglesBuffer = device.createBuffer({
     size: triData.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
   device.queue.writeBuffer(trianglesBuffer, 0, triData);
 
-  let bvhNodesBuffer: GPUBuffer;
-  let triIndicesBuffer: GPUBuffer;
+  const staticPadded = bvhPaddedCount(tris.length);
+  const staticNodes = bvhNodeCount(tris.length);
+  const gemPadded = bvhPaddedCount(gemTris.length);
+  const gemNodes = bvhNodeCount(gemTris.length);
+  const gemBounds = triangleSceneBounds(gemTris);
+  const instances = makeGemInstances();
+  const tlasNodeBase = staticNodes + gemNodes;
+  const tlasNodeCount = instances.length > 0 ? instances.length * 2 - 1 : 1;
+  const totalNodes = staticNodes + gemNodes + tlasNodeCount;
+
+  const bvhNodesBuffer = device.createBuffer({
+    size: totalNodes * 48,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  const triIndicesBuffer = device.createBuffer({
+    size: (staticPadded + gemPadded) * 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+
   let bvhSource = 'gpu';
   try {
-    const bounds = triangleSceneBounds(tris);
-    const gpuBvh = await buildGpuBvh(device, trianglesBuffer, tris.length, bounds);
-    bvhNodesBuffer = gpuBvh.nodesBuffer;
-    triIndicesBuffer = gpuBvh.triIndicesBuffer;
+    await buildGpuBvh(device, {
+      trianglesBuffer,
+      nodesBuffer: bvhNodesBuffer,
+      triIndicesBuffer,
+      triangleBase: 0,
+      triangleCount: tris.length,
+      nodeBase: 0,
+      triIndicesBase: 0,
+      bounds: triangleSceneBounds(tris),
+    });
   } catch (error) {
     console.warn('GPU BVH build failed. Falling back to the CPU build.', error);
     bvhSource = 'cpu';
     const bvh = buildBvh(tris);
-    const nodesData = nodesToBuffer(bvh.nodes);
-    bvhNodesBuffer = device.createBuffer({
-      size: nodesData.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(bvhNodesBuffer, 0, nodesData);
-    triIndicesBuffer = device.createBuffer({
-      size: bvh.triangleIndices.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
+    if (bvh.nodes.length > staticNodes) {
+      console.warn('CPU BVH is larger than the reserved static node range.');
+    }
+    device.queue.writeBuffer(bvhNodesBuffer, 0, nodesToBuffer(bvh.nodes));
     device.queue.writeBuffer(triIndicesBuffer, 0, bvh.triangleIndices);
   }
+
+  let instancesEnabled = true;
+  try {
+    await buildGpuBvh(device, {
+      trianglesBuffer,
+      nodesBuffer: bvhNodesBuffer,
+      triIndicesBuffer,
+      triangleBase: tris.length,
+      triangleCount: gemTris.length,
+      nodeBase: staticNodes,
+      triIndicesBase: staticPadded,
+      bounds: gemBounds,
+    });
+  } catch (error) {
+    console.warn('GPU gem BLAS build failed. Instanced gems are disabled.', error);
+    instancesEnabled = false;
+  }
+
+  const activeInstances = instancesEnabled ? instances : [];
+  const tlas = buildInstanceTlas(
+    activeInstances.map((instance) => instanceWorldBounds(instance, gemBounds)),
+    tlasNodeBase,
+  );
+  device.queue.writeBuffer(bvhNodesBuffer, tlasNodeBase * 48, nodesToBuffer(tlas.nodes));
+
+  const sceneInfoData = sceneInfoUniformData(staticNodes, tlas.root, activeInstances);
+  const sceneInfoBuffer = device.createBuffer({
+    size: sceneInfoData.byteLength,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(sceneInfoBuffer, 0, sceneInfoData);
 
   const lightData = lightsStorageData(defaultLights());
   const lightsBuffer = device.createBuffer({
@@ -288,6 +348,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 7, resource: { buffer: materialsBuffer } },
         { binding: 8, resource: { buffer: gbuf } },
         { binding: 9, resource: { buffer: mob } },
+        { binding: 10, resource: { buffer: sceneInfoBuffer } },
       ],
     });
 
