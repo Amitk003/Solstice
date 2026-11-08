@@ -19,8 +19,9 @@ export interface Material {
   ior: number;
   emission: number;
   absorption: [number, number, number];
-  // 0 is a plain surface. 1 is a fully scattering surface. Used by the
-  // subsurface shading approximation for wrapped light and backlight glow.
+  // 0 is a plain surface. 1 is a fully scattering surface. It drives the
+  // wrapped direct light in the shader and the probability of entering the
+  // volume random walk instead of a plain diffuse bounce.
   subsurface: number;
 }
 
@@ -88,12 +89,15 @@ export const MATERIALS: Material[] = [
     subsurface: 0.0,
   },
   {
+    // Wax. The absorption vector is the attenuation coefficient of the
+    // volume random walk: red survives the longest, blue the shortest, so
+    // light that crosses the sphere comes out warm.
     kind: MaterialKind.Subsurface,
     baseColor: [0.95, 0.62, 0.45],
     roughness: 0.6,
     ior: 1.4,
     emission: 0.0,
-    absorption: [0.0, 0.0, 0.0],
+    absorption: [1.0, 2.5, 5.0],
     subsurface: 1.0,
   },
 ];
