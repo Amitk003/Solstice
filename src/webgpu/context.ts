@@ -35,6 +35,7 @@ export interface RenderContext {
   setResolutionScale: (scale: number) => void;
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
+  setFocusOffset: (value: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
@@ -811,6 +812,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setAperture: (value: number) => {
       camera.aperture = Math.max(0, value);
+      frameCount = 0;
+      historyValid = false;
+    },
+    setFocusOffset: (value: number) => {
+      camera.focusOffset = Math.max(-2, Math.min(4, value));
       frameCount = 0;
       historyValid = false;
     },

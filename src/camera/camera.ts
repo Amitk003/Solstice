@@ -17,6 +17,7 @@ export interface Camera {
   elevation: number;
   aperture: number;
   focusDistance: number;
+  focusOffset: number;
   sunSize: number;
   skyIntensity: number;
 }
@@ -39,6 +40,7 @@ export function createCamera(): Camera {
     elevation: 0.5,
     aperture: 0.04,
     focusDistance: 4,
+    focusOffset: 0,
     sunSize: 0.05,
     skyIntensity: 1,
   };
@@ -63,11 +65,12 @@ export function updateCamera(camera: Camera, aspect: number): void {
   camera.viewProj.set(viewProj);
   mat4.inverse(viewProj, camera.invViewProj);
 
-  // Focus on the orbit target so the center of the scene stays sharp.
+  // Focus on the orbit target plus the user offset, so the panel can
+  // pull the sharp plane in front of or behind the target.
   const fx = camera.eye[0] - tx;
   const fy = camera.eye[1] - ty;
   const fz = camera.eye[2] - tz;
-  camera.focusDistance = Math.sqrt(fx * fx + fy * fy + fz * fz);
+  camera.focusDistance = Math.max(0.2, Math.sqrt(fx * fx + fy * fy + fz * fz) + camera.focusOffset);
 }
 
 export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation: number): void {
