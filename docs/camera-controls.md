@@ -8,6 +8,8 @@ target.
 - Pointer down starts dragging.
 - Pointer move changes azimuth and elevation.
 - Pointer up stops dragging.
+- Arrow keys and WASD pan the orbit target. See
+  `docs/camera-pan.md`.
 
 The panel also has four preset buttons that jump to saved views. See
 `docs/camera-presets.md`.
