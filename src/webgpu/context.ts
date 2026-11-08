@@ -2,7 +2,7 @@ import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import denoiseSource from '../shaders/denoise.wgsl?raw';
 import temporalSource from '../shaders/temporal.wgsl?raw';
-import { createCamera, cameraUniformData, orbitCamera } from '../camera/camera';
+import { createCamera, cameraUniformData, orbitCamera, panCamera } from '../camera/camera';
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
@@ -165,6 +165,46 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   window.addEventListener('pointerup', () => {
     dragging = false;
     canvas.style.cursor = 'grab';
+  });
+  // Arrow keys and WASD pan the orbit target sideways. Sliders and the
+  // select box keep their own arrow keys, so the pan ignores them.
+  window.addEventListener('keydown', (event) => {
+    if (
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLSelectElement ||
+      event.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+    let dx = 0;
+    let dy = 0;
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'a':
+      case 'A':
+        dx = -1;
+        break;
+      case 'ArrowRight':
+      case 'd':
+      case 'D':
+        dx = 1;
+        break;
+      case 'ArrowUp':
+      case 'w':
+      case 'W':
+        dy = 1;
+        break;
+      case 'ArrowDown':
+      case 's':
+      case 'S':
+        dy = -1;
+        break;
+      default:
+        return;
+    }
+    panCamera(camera, dx, dy);
+    frameCount = 0;
+    event.preventDefault();
   });
   const uniformBuffer = device.createBuffer({
     size: 192,
