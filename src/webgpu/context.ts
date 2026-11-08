@@ -15,12 +15,31 @@ export interface RenderContext {
   start: () => void;
   stop: () => void;
   getStats: () => RenderStats;
+  captureImage: () => Promise<Blob | null>;
   setBounceEnabled: (enabled: boolean) => void;
   setResolutionScale: (scale: number) => void;
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
+}
+
+async function encodePng(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+): Promise<Blob | null> {
+  const target = document.createElement('canvas');
+  target.width = width;
+  target.height = height;
+  const context = target.getContext('2d');
+  if (!context) {
+    return null;
+  }
+  context.putImageData(new ImageData(pixels as Uint8ClampedArray<ArrayBuffer>, width, height), 0, 0);
+  return new Promise((resolve) => {
+    target.toBlob((blob) => resolve(blob), 'image/png');
+  });
 }
 
 export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderContext> {
@@ -200,6 +219,84 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     });
   }
 
+  // Draw the tonemapped frame into an offscreen texture, copy it to a
+  // buffer, then build a PNG from the pixels. This avoids depending on
+  // canvas readback, which can return an empty image for WebGPU canvases.
+  async function captureImage(): Promise<Blob | null> {
+    if (!outputTexture || !renderBindGroup) {
+      return null;
+    }
+    const width = canvas.width;
+    const height = canvas.height;
+    const bytesPerRow = Math.ceil((width * 4) / 256) * 256;
+
+    const captureTexture = device.createTexture({
+      size: [width, height],
+      format,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+    });
+    const readBuffer = device.createBuffer({
+      size: bytesPerRow * height,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: captureTexture.createView(),
+          clearValue: { r: 0, g: 0, b: 0, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store',
+        },
+      ],
+    });
+    pass.setPipeline(renderPipeline);
+    pass.setBindGroup(0, renderBindGroup);
+    pass.draw(3);
+    pass.end();
+
+    encoder.copyTextureToBuffer(
+      { texture: captureTexture },
+      { buffer: readBuffer, bytesPerRow, rowsPerImage: height },
+      [width, height],
+    );
+    device.queue.submit([encoder.finish()]);
+
+    await readBuffer.mapAsync(GPUMapMode.READ);
+    const mapped = new Uint8Array(readBuffer.getMappedRange());
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    const swapRedBlue = format === 'bgra8unorm';
+    for (let y = 0; y < height; y++) {
+      const source = y * bytesPerRow;
+      const destination = y * width * 4;
+      for (let x = 0; x < width; x++) {
+        const s = source + x * 4;
+        const d = destination + x * 4;
+        const red = mapped[s] ?? 0;
+        const green = mapped[s + 1] ?? 0;
+        const blue = mapped[s + 2] ?? 0;
+        const alpha = mapped[s + 3] ?? 0;
+        if (swapRedBlue) {
+          pixels[d] = blue;
+          pixels[d + 1] = green;
+          pixels[d + 2] = red;
+          pixels[d + 3] = alpha;
+        } else {
+          pixels[d] = red;
+          pixels[d + 1] = green;
+          pixels[d + 2] = blue;
+          pixels[d + 3] = alpha;
+        }
+      }
+    }
+    readBuffer.unmap();
+    readBuffer.destroy();
+    captureTexture.destroy();
+
+    return encodePng(pixels, width, height);
+  }
+
   resize();
   window.addEventListener('resize', resize);
 
@@ -271,6 +368,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       }
     },
     getStats: () => ({ samples: frameCount, fps }),
+    captureImage,
     setBounceEnabled: (enabled: boolean) => {
       bounceEnabled = enabled;
       frameCount = 0;
