@@ -4,7 +4,8 @@ The page now shows live render info and lets you lower the cost.
 
 ## What changed
 
-- The status line shows sample count and fps.
+- The status line shows sample count, fps, frame time, resolution,
+  memory estimate, adapter, and BVH counts.
 - A checkbox toggles the indirect bounce.
 - Turning it off uses a cheap direct plus sky fill path.
 - A selector sets render scale to 50, 75, or 100 percent.

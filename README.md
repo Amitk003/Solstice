@@ -35,7 +35,7 @@ the page and look around.
 - Camera pan with the arrow keys or WASD
 - Mouse wheel zoom for the orbit camera
 - Camera field of view slider
-- HUD readout with frame time, resolution, memory estimate, and adapter
+- HUD readout with frame time, resolution, memory estimate, adapter, and BVH counts
 - Dynamic resolution that steps down when the frame rate drops
 - Focus offset slider to place the depth of field plane
 - Sun angle, height, warmth, and intensity sliders for daylight
