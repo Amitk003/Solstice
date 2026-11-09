@@ -19,7 +19,7 @@ the page and look around.
 - WebGPU compute pipelines for ray generation, tracing, shading, and display
 - GPU-built BVH (morton codes + bitonic sort + level built tree) for fast tracing
 - Edge aware a-trous denoiser guided by normals, depth, and variance, with a strength slider
-- Temporal reprojection with motion vectors, history clamping, and disocclusion tests
+- Temporal reprojection with motion vectors, history clamping, and disocclusion tests, plus a blend slider
 - Procedural HDR environment map for the sky, indirect light, and reflections
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
