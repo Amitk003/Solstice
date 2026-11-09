@@ -60,6 +60,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const fovRange = document.querySelector<HTMLInputElement>('#fovRange');
+    if (fovRange) {
+      fovRange.addEventListener('input', () => {
+        context.setFovDegrees(Number(fovRange.value));
+      });
+    }
+
     const sunRange = document.querySelector<HTMLInputElement>('#sunRange');
     if (sunRange) {
       sunRange.addEventListener('input', () => {
