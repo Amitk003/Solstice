@@ -40,6 +40,7 @@ export interface RenderContext {
   setAperture: (value: number) => void;
   setFovDegrees: (value: number) => void;
   setNormalMapScale: (value: number) => void;
+  setNormalMapStrength: (value: number) => void;
   setFocusOffset: (value: number) => void;
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
@@ -991,6 +992,14 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setNormalMapScale: (value: number) => {
       camera.normalScale = Math.max(0.05, Math.min(1, value));
+      frameCount = 0;
+      historyValid = false;
+    },
+    setNormalMapStrength: (value: number) => {
+      // MAT_FLOOR is material slot 0. The detail field is the last
+      // float of its 48 byte entry, at byte 44.
+      const strength = Math.max(0, Math.min(1, value));
+      device.queue.writeBuffer(materialsBuffer, 44, new Float32Array([strength]));
       frameCount = 0;
       historyValid = false;
     },
