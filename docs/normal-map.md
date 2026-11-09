@@ -27,8 +27,9 @@ The existing `detail` field is now the normal map strength. The
 floor uses 0.35. Other materials use 0, so their normals stay as
 authored.
 
-The Map scale slider controls how large the features are. See
-`docs/normal-map-scale.md`.
+The Map scale slider controls how large the features are, and the
+Map strength slider controls how strongly the normal bends. See
+`docs/normal-map-scale.md` and `docs/normal-map-strength.md`.
 
 ## Limits
 
