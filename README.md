@@ -34,6 +34,7 @@ the page and look around.
 - Focus offset slider to place the depth of field plane
 - Sun angle and height sliders that move the daylight and rebuild the sky
 - Key light slider that scales the panel light and its glow
+- Fill light slider that scales the cool side light and its glow
 - Vignette toggle for the display pass
 - Responsive control panel that wraps on small screens
 - Memory estimate in the HUD for the main frame resources
