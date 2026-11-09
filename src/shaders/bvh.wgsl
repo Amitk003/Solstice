@@ -122,6 +122,14 @@ struct Material {
 // coordinates from the surface normal, so triangles do not need UVs.
 @group(0) @binding(14) var normalMap: texture_2d<f32>;
 
+// Direct sun color. It is separate from the camera uniforms so the
+// environment map can stay in sync with the visible sun disk.
+struct SunParams {
+  color: vec3f,
+  _pad0: f32,
+}
+@group(0) @binding(15) var<uniform> sunParams: SunParams;
+
 // Alpha cutout lattice. The screen is one quad in the BVH, so the shader
 // discards a hit when the world space pattern is transparent. Keeping
 // the full quad in the BVH is conservative and cheap.
@@ -792,7 +800,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     let sunBack = max((-sunRaw + wrap) / (1.0 + wrap), 0.0) * translucency;
     let sunScale = 1.6 * 0.75;
     radiance =
-      radiance + throughput * mat.baseColor * (0.05 + 0.95 * sunDirect + sunBack) * sunScale;
+      radiance + throughput * mat.baseColor * sunParams.color * (0.05 + 0.95 * sunDirect + sunBack) * sunScale;
 
     if (!bounceOn) {
       break;

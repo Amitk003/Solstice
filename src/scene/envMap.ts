@@ -11,6 +11,7 @@ export const ENV_MAP_WIDTH = 1024;
 export const ENV_MAP_HEIGHT = 512;
 
 export const DEFAULT_SUN_DIRECTION: [number, number, number] = [0.4, 0.8, -0.4];
+export const DEFAULT_SUN_TINT: [number, number, number] = [1.0, 0.95, 0.85];
 
 const WINDOWS: Array<{ direction: [number, number, number]; brightness: number }> = [
   { direction: [0.9, 0.35, 0.2], brightness: 7.0 },
@@ -32,6 +33,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 function envColor(
   dir: [number, number, number],
   sunDir: [number, number, number],
+  sunTint: [number, number, number],
   out: [number, number, number],
 ): void {
   const horizon: [number, number, number] = [0.55, 0.7, 0.95];
@@ -50,9 +52,13 @@ function envColor(
   const sunDot = dir[0] * sun[0] + dir[1] * sun[1] + dir[2] * sun[2];
   // Soft glow around the sun plus a small bright disk.
   const glow = Math.pow(Math.max(0, sunDot), 8) * 0.6;
-  const glowColor: [number, number, number] = [2.0, 1.6, 1.1];
+  const glowColor: [number, number, number] = [
+    2.0 * (sunTint[0] ?? 1),
+    1.6 * (sunTint[1] ?? 1),
+    1.1 * (sunTint[2] ?? 1),
+  ];
   const disk = smoothstep(0.9992, 0.9997, sunDot) * 18.0;
-  const diskColor: [number, number, number] = [1.0, 0.95, 0.85];
+  const diskColor: [number, number, number] = [sunTint[0] ?? 1, sunTint[1] ?? 1, sunTint[2] ?? 1];
   for (let i = 0; i < 3; i++) {
     out[i] = (out[i] ?? 0) + (glowColor[i] ?? 0) * glow + (diskColor[i] ?? 0) * disk;
   }
@@ -69,7 +75,10 @@ function envColor(
   }
 }
 
-export function makeEnvMapData(sun: [number, number, number] = DEFAULT_SUN_DIRECTION): Float32Array {
+export function makeEnvMapData(
+  sun: [number, number, number] = DEFAULT_SUN_DIRECTION,
+  sunTint: [number, number, number] = DEFAULT_SUN_TINT,
+): Float32Array {
   const data = new Float32Array(ENV_MAP_WIDTH * ENV_MAP_HEIGHT * 4);
   const color: [number, number, number] = [0, 0, 0];
   for (let y = 0; y < ENV_MAP_HEIGHT; y++) {
@@ -85,7 +94,7 @@ export function makeEnvMapData(sun: [number, number, number] = DEFAULT_SUN_DIREC
         Math.sin(theta),
         Math.cos(theta) * Math.sin(phi),
       ];
-      envColor(dir, sun, color);
+      envColor(dir, sun, sunTint, color);
       const o = (y * ENV_MAP_WIDTH + x) * 4;
       data[o] = color[0] ?? 0;
       data[o + 1] = color[1] ?? 0;
