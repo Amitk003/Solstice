@@ -27,11 +27,14 @@ The existing `detail` field is now the normal map strength. The
 floor uses 0.35. Other materials use 0, so their normals stay as
 authored.
 
+The Map scale slider controls how large the features are. See
+`docs/normal-map-scale.md`.
+
 ## Limits
 
 - The map has no UV unwrap. World space planar coordinates are
   used, which is best for large flat surfaces.
 - The map is procedural. There is no file loader for authored
   textures.
-- The pattern repeats every four world units. A larger texture
-  would add finer detail.
+- The pattern repeats every four world units at the default scale.
+  The Map scale slider changes that tiling.
