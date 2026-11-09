@@ -45,6 +45,7 @@ struct BvhNode {
 // One instanced mesh transform. Keep MAX_INSTANCES in sync with
 // src/scene/instances.ts.
 const MAX_INSTANCES = 8u;
+const KIND_CUTOUT = 5u;
 
 struct Instance {
   inverse: mat4x4f,
@@ -118,6 +119,21 @@ struct Material {
 @group(0) @binding(12) var envMap: texture_2d<f32>;
 @group(0) @binding(13) var envSampler: sampler;
 
+// Alpha cutout lattice. The screen is one quad in the BVH, so the shader
+// discards a hit when the world space pattern is transparent. Keeping
+// the full quad in the BVH is conservative and cheap.
+fn cutoutAlpha(pos: vec3f) -> f32 {
+  let cell = abs(fract(vec2f(pos.x, pos.y) * 4.0) - 0.5);
+  if (max(cell.x, cell.y) > 0.32) {
+    return 0.0;
+  }
+  return 1.0;
+}
+
+fn isCutoutDiscarded(materialIndex: u32, pos: vec3f) -> bool {
+  return materials[materialIndex].kind == KIND_CUTOUT && cutoutAlpha(pos) < 0.5;
+}
+
 fn intersectTriangle(origin: vec3f, dir: vec3f, tri: Triangle) -> vec3f {
   let edge1 = tri.v1 - tri.v0;
   let edge2 = tri.v2 - tri.v0;
@@ -176,8 +192,9 @@ fn isOccluded(origin: vec3f, dir: vec3f, maxT: f32) -> bool {
           break;
         }
         let ti = triIndices[node.first + k];
-        let shadowT = intersectTriangle(origin, dir, triangles[ti]).x;
-        if (shadowT > 0.0 && shadowT < maxT) {
+        let tri = triangles[ti];
+        let shadowT = intersectTriangle(origin, dir, tri).x;
+        if (shadowT > 0.0 && shadowT < maxT && !isCutoutDiscarded(tri.material, origin + dir * shadowT)) {
           return true;
         }
         k = k + 1u;
@@ -235,7 +252,7 @@ fn traceClosest(origin: vec3f, dir: vec3f) -> Hit {
         let ti = triIndices[node.first + k];
         let tri = triangles[ti];
         let tuv = intersectTriangle(origin, dir, tri);
-        if (tuv.x > 0.0 && tuv.x < result.t) {
+        if (tuv.x > 0.0 && tuv.x < result.t && !isCutoutDiscarded(tri.material, origin + dir * tuv.x)) {
           result.t = tuv.x;
           result.found = true;
           result.tri = ti;

@@ -11,13 +11,15 @@ triangles at its index. That is the whole job.
 
 ## Fields
 
-- kind: diffuse, mirror, glass, or emissive.
+- kind: diffuse, mirror, glass, emissive, subsurface, or cutout.
 - baseColor: the surface color. Also the reflection tint for mirrors.
 - roughness: how blurry a mirror reflection is. Low is sharp, high is
   soft.
 - ior: index of refraction for glass.
 - emission: how strongly an emissive surface glows.
 - absorption: how fast light dims while traveling through glass.
+- subsurface: how much light wraps and transmits through a surface.
+- detail: strength of procedural normal detail.
 
 ## Layout
 
@@ -29,10 +31,11 @@ Each material is 48 bytes:
 - ior: 1 float
 - kind: 1 unsigned int
 - emission: 1 float
-- two pads
+- subsurface: 1 float
+- detail: 1 unsigned int (float bits)
 
-The pads keep the 48 byte stride aligned to 16 bytes, which the storage
-buffer rules want.
+The last two fields keep the 48 byte stride aligned to 16 bytes, which
+the storage buffer rules want.
 
 ## What changed
 
