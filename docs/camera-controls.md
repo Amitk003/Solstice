@@ -13,6 +13,8 @@ target.
 - Mouse wheel zooms the orbit radius. See `docs/camera-zoom.md`.
 - The FOV slider changes the vertical field of view. See
   `docs/camera-fov.md`.
+- Reset view returns the target, angles, radius, field of view, and
+  focus offset to the defaults. See `docs/reset-view.md`.
 - Arrow keys and WASD pan the orbit target. See
   `docs/camera-pan.md`.
 
