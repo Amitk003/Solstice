@@ -25,6 +25,7 @@ export interface RenderStats {
   width: number;
   height: number;
   gpuMemoryMB: number;
+  adapter: string;
   bvh: string;
 }
 
@@ -80,6 +81,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   if (!adapter) {
     throw new Error('No suitable GPU adapter found.');
   }
+  const info = adapter.info;
+  const adapterName =
+    [info.vendor, info.architecture, info.device, info.description].filter((part) => part.length > 0).join(' ') ||
+    'WebGPU adapter';
 
   const device = await adapter.requestDevice();
   const canvasContext = canvas.getContext('webgpu');
@@ -917,6 +922,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       width: canvas.width,
       height: canvas.height,
       gpuMemoryMB,
+      adapter: adapterName,
       bvh: bvhSource,
     }),
     captureImage,
