@@ -58,7 +58,8 @@ the page and look around.
 
 ## Getting started
 
-Prerequisites: Node.js 20 or newer, a browser with WebGPU enabled.
+Prerequisites: Node.js 20 or newer, a browser with WebGPU enabled, and
+a secure context such as localhost or HTTPS.
 
 ```bash
 npm install
