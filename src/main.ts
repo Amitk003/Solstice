@@ -32,6 +32,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const denoiseStrengthRange = document.querySelector<HTMLInputElement>('#denoiseStrengthRange');
+    if (denoiseStrengthRange) {
+      denoiseStrengthRange.addEventListener('input', () => {
+        context.setDenoiseStrength(Number(denoiseStrengthRange.value));
+      });
+    }
+
     const autoOrbitToggle = document.querySelector<HTMLInputElement>('#autoOrbitToggle');
     if (autoOrbitToggle) {
       autoOrbitToggle.addEventListener('change', () => {

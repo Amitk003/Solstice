@@ -4,7 +4,7 @@
 
 struct Params {
   step: u32,
-  _pad0: u32,
+  strength: f32,
   _pad1: u32,
   _pad2: u32,
 }
@@ -83,5 +83,6 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   }
 
   let filtered = sum / max(weightSum, 0.0001);
-  textureStore(outputTex, coord, vec4f(filtered, 1.0));
+  let mixed = mix(center.rgb, filtered, clamp(params.strength, 0.0, 1.0));
+  textureStore(outputTex, coord, vec4f(mixed, 1.0));
 }

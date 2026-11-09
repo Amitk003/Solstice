@@ -51,6 +51,7 @@ export interface RenderContext {
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
+  setDenoiseStrength: (value: number) => void;
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
   setSaturation: (value: number) => void;
@@ -123,18 +124,31 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
 
   // One small uniform buffer per a-trous pass so each pass can use its own
-  // step size without rewriting a shared buffer mid frame.
+  // step size and the shared strength value without rewriting the
+  // buffers mid frame.
+  let denoiseStrength = 1;
+  const writeStepBuffer = (buffer: GPUBuffer, step: number): void => {
+    const data = new Float32Array(4);
+    data[0] = step;
+    data[1] = denoiseStrength;
+    device.queue.writeBuffer(buffer, 0, data);
+  };
   function makeStepBuffer(step: number): GPUBuffer {
     const buffer = device.createBuffer({
       size: 16,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(buffer, 0, new Uint32Array([step, 0, 0, 0]));
+    writeStepBuffer(buffer, step);
     return buffer;
   }
   const stepBuffer1 = makeStepBuffer(1);
   const stepBuffer2 = makeStepBuffer(2);
   const stepBuffer4 = makeStepBuffer(4);
+  const updateStepBuffers = (): void => {
+    writeStepBuffer(stepBuffer1, 1);
+    writeStepBuffer(stepBuffer2, 2);
+    writeStepBuffer(stepBuffer4, 4);
+  };
 
   // One flag: whether the previous frame is safe to reuse. The temporal pass
   // ignores history on the first frame and after a resize or look change.
@@ -959,6 +973,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setDenoiseEnabled: (enabled: boolean) => {
       denoiseEnabled = enabled;
+      historyValid = false;
+    },
+    setDenoiseStrength: (value: number) => {
+      denoiseStrength = Math.max(0, Math.min(1, value));
+      updateStepBuffers();
       historyValid = false;
     },
     setResolutionScale: (scale: number) => {
