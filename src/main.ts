@@ -172,6 +172,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const temperatureRange = document.querySelector<HTMLInputElement>('#temperatureRange');
+    if (temperatureRange) {
+      temperatureRange.addEventListener('input', () => {
+        context.setTemperature(Number(temperatureRange.value));
+      });
+    }
+
     const toneSelect = document.querySelector<HTMLSelectElement>('#toneSelect');
     if (toneSelect) {
       toneSelect.addEventListener('change', () => {

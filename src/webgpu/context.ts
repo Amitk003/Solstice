@@ -60,6 +60,7 @@ export interface RenderContext {
   setToneMode: (mode: number) => void;
   setSaturation: (value: number) => void;
   setContrast: (value: number) => void;
+  setTemperature: (value: number) => void;
   setVignette: (enabled: boolean) => void;
   setAutoOrbit: (enabled: boolean) => void;
   resetCamera: () => void;
@@ -451,6 +452,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let vignetteValue = 0;
   let saturationValue = 1;
   let contrastValue = 1;
+  let temperatureValue = 0.5;
   let keyLightScale = 1;
   let fillLightScale = 1;
   const writeDisplayParams = (): void => {
@@ -460,6 +462,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     data[2] = vignetteValue;
     data[3] = saturationValue;
     data[4] = contrastValue;
+    data[5] = temperatureValue;
     device.queue.writeBuffer(displayParamsBuffer, 0, data);
   };
   writeDisplayParams();
@@ -1112,6 +1115,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setContrast: (value: number) => {
       contrastValue = Math.max(0.5, Math.min(1.5, value));
+      writeDisplayParams();
+    },
+    setTemperature: (value: number) => {
+      temperatureValue = Math.max(0, Math.min(1, value));
       writeDisplayParams();
     },
     setVignette: (enabled: boolean) => {

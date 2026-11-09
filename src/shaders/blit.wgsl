@@ -19,13 +19,14 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
 // vignette is the strength of the edge darkening, 0 is off.
 // saturation scales color around luminance, 1 is full color.
 // contrast scales the tone mapped color around mid gray, 1 is none.
+// temperature tints the final color, 0 is cool and 1 is warm.
 struct Params {
   exposure: f32,
   mode: u32,
   vignette: f32,
   saturation: f32,
   contrast: f32,
-  _pad0: f32,
+  temperature: f32,
   _pad1: f32,
   _pad2: f32,
 }
@@ -63,6 +64,9 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   mapped = mix(vec3f(luminance), mapped, clamp(params.saturation, 0.0, 2.0));
   let mid = vec3f(0.18);
   mapped = (mapped - mid) * clamp(params.contrast, 0.5, 1.5) + mid;
+  let cool = vec3f(0.85, 0.92, 1.0);
+  let warm = vec3f(1.05, 0.9, 0.7);
+  mapped = mapped * mix(cool, warm, clamp(params.temperature, 0.0, 1.0));
   let dist = distance(in.uv, vec2f(0.5, 0.5));
   let vig = 1.0 - smoothstep(0.35, 0.75, dist);
   mapped = mapped * mix(1.0, vig, clamp(params.vignette, 0.0, 1.0));
