@@ -26,6 +26,9 @@ export interface RenderStats {
   height: number;
   gpuMemoryMB: number;
   adapter: string;
+  nodes: number;
+  triangles: number;
+  paddedIndices: number;
   bvh: string;
 }
 
@@ -967,6 +970,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       height: canvas.height,
       gpuMemoryMB,
       adapter: adapterName,
+      nodes: totalNodes,
+      triangles: allTris.length,
+      paddedIndices: staticPadded + gemPadded,
       bvh: bvhSource,
     }),
     captureImage,
