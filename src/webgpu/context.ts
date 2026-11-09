@@ -54,6 +54,7 @@ export interface RenderContext {
   setToneMode: (mode: number) => void;
   setVignette: (enabled: boolean) => void;
   setAutoOrbit: (enabled: boolean) => void;
+  resetCamera: () => void;
   setCameraPreset: (preset: number) => void;
 }
 
@@ -1066,6 +1067,17 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setAutoOrbit: (enabled: boolean) => {
       autoOrbit = enabled;
+    },
+    resetCamera: () => {
+      camera.target[0] = 0;
+      camera.target[1] = 0;
+      camera.target[2] = 0;
+      camera.radius = 4;
+      camera.azimuth = 0.6;
+      camera.elevation = 0.5;
+      camera.fovYRadians = Math.PI / 4;
+      camera.focusOffset = 0;
+      frameCount = 0;
     },
     setCameraPreset: (preset: number) => {
       // A camera jump is a camera move, so the trace accumulation resets

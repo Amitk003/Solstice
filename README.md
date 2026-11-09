@@ -30,6 +30,7 @@ the page and look around.
 - Frosted glass that blurs with its roughness value
 - Debug views for normals, depth, albedo, roughness, and emission
 - Auto orbit toggle for hands-free camera drift
+- Reset view button for the default camera framing
 - Camera preset buttons for saved views
 - Camera pan with the arrow keys or WASD
 - Mouse wheel zoom for the orbit camera
