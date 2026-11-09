@@ -25,3 +25,5 @@ export uses the same value as the screen.
 
 - One contrast value for all channels. There is no per channel
   color balance.
+- Temperature is a separate display slider. See
+  `docs/display-temperature.md`.
