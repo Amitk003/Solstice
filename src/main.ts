@@ -74,6 +74,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const normalStrengthRange = document.querySelector<HTMLInputElement>('#normalStrengthRange');
+    if (normalStrengthRange) {
+      normalStrengthRange.addEventListener('input', () => {
+        context.setNormalMapStrength(Number(normalStrengthRange.value));
+      });
+    }
+
     const sunRange = document.querySelector<HTMLInputElement>('#sunRange');
     if (sunRange) {
       sunRange.addEventListener('input', () => {
