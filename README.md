@@ -50,6 +50,7 @@ the page and look around.
 - Procedural tangent space normal map for flat surfaces, no assets needed
 - Normal map scale and strength sliders for world space tiling
 - Alpha cutout lattice with shadows through the holes
+- Alpha blend foil that lets light continue through a tinted plane
 - Two-level acceleration: per-mesh BLAS and a top-level TLAS for instances
 
 ## Tech stack

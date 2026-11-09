@@ -11,7 +11,7 @@ triangles at its index. That is the whole job.
 
 ## Fields
 
-- kind: diffuse, mirror, glass, emissive, subsurface, or cutout.
+- kind: diffuse, mirror, glass, emissive, subsurface, cutout, or blend.
 - baseColor: the surface color. Also the reflection tint for mirrors.
 - roughness: how blurry a mirror reflection is. Low is sharp, high is
   soft.
