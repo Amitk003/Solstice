@@ -126,7 +126,7 @@ struct Material {
 // environment map can stay in sync with the visible sun disk.
 struct SunParams {
   color: vec3f,
-  _pad0: f32,
+  intensity: f32,
 }
 @group(0) @binding(15) var<uniform> sunParams: SunParams;
 
@@ -798,7 +798,7 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
       sunDirect = 0.0;
     }
     let sunBack = max((-sunRaw + wrap) / (1.0 + wrap), 0.0) * translucency;
-    let sunScale = 1.6 * 0.75;
+    let sunScale = 1.6 * 0.75 * max(sunParams.intensity, 0.0);
     radiance =
       radiance + throughput * mat.baseColor * sunParams.color * (0.05 + 0.95 * sunDirect + sunBack) * sunScale;
 
