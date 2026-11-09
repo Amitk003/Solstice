@@ -24,6 +24,7 @@ the page and look around.
 - Materials: Lambert, Cook-Torrance (GGX), metal, roughness, dielectrics,
   and subsurface scattering
 - One click PNG export of the tone mapped frame
+- Pause and resume button for the render loop
 - Exposure slider for the display pass, with no sample reset
 - Tone mapper choice: ACES, Reinhard, or linear
 - Frosted glass that blurs with its roughness value
