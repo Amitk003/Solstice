@@ -44,6 +44,10 @@ The panel has a Denoise checkbox. Turn it off to see the raw
 accumulated image. Turn it on to compare. The setting does not reset
 the accumulated samples.
 
+The Denoise strength slider mixes the filtered image with the raw
+input. At 1 the filter is full. At 0 the filter runs but has no
+visible effect. See `docs/denoise-strength.md`.
+
 ## Limits
 
 - No albedo or specular demodulation. The filter works on full radiance.
