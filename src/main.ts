@@ -95,6 +95,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const vignetteToggle = document.querySelector<HTMLInputElement>('#vignetteToggle');
+    if (vignetteToggle) {
+      vignetteToggle.addEventListener('change', () => {
+        context.setVignette(vignetteToggle.checked);
+      });
+    }
+
     const presetButtons = document.querySelectorAll<HTMLButtonElement>('.presetButton');
     presetButtons.forEach((button) => {
       button.addEventListener('click', () => {

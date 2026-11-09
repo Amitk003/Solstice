@@ -44,6 +44,7 @@ export interface RenderContext {
   setDenoiseEnabled: (enabled: boolean) => void;
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
+  setVignette: (enabled: boolean) => void;
   setCameraPreset: (preset: number) => void;
 }
 
@@ -361,10 +362,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   });
   let exposureValue = 1.2;
   let toneMode = 0;
+  let vignetteValue = 0;
   const writeDisplayParams = (): void => {
     const data = new Float32Array(4);
     data[0] = exposureValue;
     new Uint32Array(data.buffer)[1] = toneMode;
+    data[2] = vignetteValue;
     device.queue.writeBuffer(displayParamsBuffer, 0, data);
   };
   writeDisplayParams();
@@ -905,6 +908,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setToneMode: (mode: number) => {
       toneMode = Math.max(0, Math.min(2, Math.floor(mode)));
+      writeDisplayParams();
+    },
+    setVignette: (enabled: boolean) => {
+      vignetteValue = enabled ? 1 : 0;
       writeDisplayParams();
     },
     setCameraPreset: (preset: number) => {

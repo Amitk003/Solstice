@@ -34,6 +34,7 @@ the page and look around.
 - Focus offset slider to place the depth of field plane
 - Sun angle and height sliders that move the daylight and rebuild the sky
 - Key light slider that scales the panel light and its glow
+- Vignette toggle for the display pass
 - Firefly clamp that stops single sample spikes
 - Adaptive sampling that skips the path trace once a pixel converges
 - Rectangular panel light for softer key shadows

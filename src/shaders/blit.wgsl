@@ -16,10 +16,11 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
 
 // Display settings, padded to 16 bytes for the uniform buffer. mode
 // selects the tone mapper: 0 is ACES, 1 is Reinhard, 2 is linear.
+// vignette is the strength of the edge darkening, 0 is off.
 struct Params {
   exposure: f32,
   mode: u32,
-  _pad1: u32,
+  vignette: f32,
   _pad2: u32,
 }
 
@@ -52,6 +53,9 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   } else {
     mapped = aces(scaled);
   }
+  let dist = distance(in.uv, vec2f(0.5, 0.5));
+  let vig = 1.0 - smoothstep(0.35, 0.75, dist);
+  mapped = mapped * mix(1.0, vig, clamp(params.vignette, 0.0, 1.0));
   let gamma = pow(mapped, vec3f(1.0 / 2.2));
   return vec4f(gamma, 1.0);
 }
