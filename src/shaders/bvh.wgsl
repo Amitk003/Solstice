@@ -925,7 +925,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   }
 
   let primary = traceScene(rayOrigin, dir);
-  let viewMode = (camera.flags >> 1u) & 3u;
+  let viewMode = (camera.flags >> 1u) & 7u;
   let idx = gid.y * dims.x + gid.x;
 
   // Adaptive skip. Once the running luminance variance is tiny the pixel
@@ -961,6 +961,18 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
   } else if (viewMode == 3u) {
     if (primary.found) {
       color = materials[primary.material].baseColor;
+    } else {
+      color = vec3f(0.0);
+    }
+  } else if (viewMode == 4u) {
+    if (primary.found) {
+      color = vec3f(materials[primary.material].roughness);
+    } else {
+      color = vec3f(0.0);
+    }
+  } else if (viewMode == 5u) {
+    if (primary.found) {
+      color = emissiveColor(primary.material);
     } else {
       color = vec3f(0.0);
     }

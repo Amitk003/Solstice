@@ -137,10 +137,10 @@ async function main(): Promise<void> {
       });
     }
 
-    const modeNames = ['shaded', 'normal', 'depth', 'albedo'];
+    const modeNames = ['shaded', 'normal', 'depth', 'albedo', 'roughness', 'emission'];
     let viewMode = 0;
     window.addEventListener('keydown', (event) => {
-      if (event.key === '1' || event.key === '2' || event.key === '3' || event.key === '4') {
+      if (event.key === '1' || event.key === '2' || event.key === '3' || event.key === '4' || event.key === '5' || event.key === '6') {
         viewMode = Number(event.key) - 1;
         context.setViewMode(viewMode);
       }
