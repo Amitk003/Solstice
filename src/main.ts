@@ -158,6 +158,21 @@ async function main(): Promise<void> {
       });
     });
 
+    const pauseButton = document.querySelector<HTMLButtonElement>('#pauseButton');
+    if (pauseButton) {
+      let running = true;
+      pauseButton.addEventListener('click', () => {
+        running = !running;
+        if (running) {
+          context.start();
+          pauseButton.textContent = 'Pause';
+        } else {
+          context.stop();
+          pauseButton.textContent = 'Resume';
+        }
+      });
+    }
+
     const saveButton = document.querySelector<HTMLButtonElement>('#saveButton');
     if (saveButton) {
       saveButton.addEventListener('click', async () => {
