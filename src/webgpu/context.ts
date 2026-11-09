@@ -45,6 +45,7 @@ export interface RenderContext {
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
   setSunWarmth: (value: number) => void;
+  setSunIntensity: (value: number) => void;
   setKeyLightIntensity: (scale: number) => void;
   setFillLightIntensity: (scale: number) => void;
   setSunSize: (value: number) => void;
@@ -144,11 +145,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+  let sunIntensity = 1;
   const writeSunParams = (color: [number, number, number]): void => {
     device.queue.writeBuffer(
       sunParamsBuffer,
       0,
-      new Float32Array([color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, 0]),
+      new Float32Array([color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, sunIntensity]),
     );
   };
   writeSunParams(DEFAULT_SUN_TINT);
@@ -1034,6 +1036,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       frameCount = 0;
       historyValid = false;
       queueEnvMapUpdate();
+    },
+    setSunIntensity: (value: number) => {
+      sunIntensity = Math.max(0, Math.min(4, value));
+      writeSunParams(latestSunTint);
+      frameCount = 0;
+      historyValid = false;
     },
     setKeyLightIntensity: (scale: number) => {
       keyLightScale = Math.max(0, Math.min(3, scale));

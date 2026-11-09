@@ -109,6 +109,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const sunIntensityRange = document.querySelector<HTMLInputElement>('#sunIntensityRange');
+    if (sunIntensityRange) {
+      sunIntensityRange.addEventListener('input', () => {
+        context.setSunIntensity(Number(sunIntensityRange.value));
+      });
+    }
+
     const keyLightRange = document.querySelector<HTMLInputElement>('#keyLightRange');
     if (keyLightRange) {
       keyLightRange.addEventListener('input', () => {
