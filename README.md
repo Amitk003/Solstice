@@ -36,7 +36,7 @@ the page and look around.
 - HUD readout with frame time, resolution, memory estimate, and adapter
 - Dynamic resolution that steps down when the frame rate drops
 - Focus offset slider to place the depth of field plane
-- Sun angle and height sliders that move the daylight and rebuild the sky
+- Sun angle, height, and warmth sliders for daylight
 - Key light slider that scales the panel light and its glow
 - Fill light slider that scales the cool side light and its glow
 - Vignette toggle for the display pass

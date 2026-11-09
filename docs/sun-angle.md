@@ -1,8 +1,9 @@
-# Sun angle and height
+# Sun angle, height, and warmth
 
-The sun used to point one fixed way. Two sliders now move the daylight
-around the sky: a Sun angle slider for the azimuth and a Sun height
-slider for the elevation.
+The sun used to point one fixed way. Three sliders now move the
+daylight around the sky and tint it: a Sun angle slider for the
+azimuth, a Sun height slider for the elevation, and a Sun warmth
+slider for the color.
 
 ## How it works
 
@@ -32,5 +33,7 @@ across the floor and the wax sphere.
 
 - Very low elevations (2 degrees) give long glancing light. Very
   high ones (89 degrees) give flat noon light.
+- The warmth slider tints the sun and the environment sun disk. See
+  `docs/sun-warmth.md`.
 - The windows in the environment map do not move with the sun.
 - Moving the sun resets the samples and the temporal history.
