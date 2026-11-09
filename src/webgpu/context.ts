@@ -40,6 +40,7 @@ export interface RenderContext {
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
   setKeyLightIntensity: (scale: number) => void;
+  setFillLightIntensity: (scale: number) => void;
   setSunSize: (value: number) => void;
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
@@ -365,6 +366,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let exposureValue = 1.2;
   let toneMode = 0;
   let vignetteValue = 0;
+  let keyLightScale = 1;
+  let fillLightScale = 1;
   const writeDisplayParams = (): void => {
     const data = new Float32Array(4);
     data[0] = exposureValue;
@@ -813,6 +816,34 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     }
   };
 
+  // Area light colors are written to the light buffer and to the
+  // matching material slots, so the visible lamp and fill meshes glow
+  // with the same color as the light they emit.
+  const writeAreaLightIntensity = (): void => {
+    const keyColor: [number, number, number] = [
+      (LAMP_LIGHT.color[0] ?? 0) * keyLightScale,
+      (LAMP_LIGHT.color[1] ?? 0) * keyLightScale,
+      (LAMP_LIGHT.color[2] ?? 0) * keyLightScale,
+    ];
+    const fillColor: [number, number, number] = [
+      (FILL_LIGHT.color[0] ?? 0) * fillLightScale,
+      (FILL_LIGHT.color[1] ?? 0) * fillLightScale,
+      (FILL_LIGHT.color[2] ?? 0) * fillLightScale,
+    ];
+    const lights = [
+      { ...LAMP_LIGHT, color: keyColor },
+      { ...FILL_LIGHT, color: fillColor },
+    ];
+    device.queue.writeBuffer(lightsBuffer, 0, lightsStorageData(lights));
+    // MAT_LAMP is material slot 3 and MAT_FILL is material slot 4. Each
+    // 48 byte material stores baseColor in the first 12 bytes, so this
+    // rewrite leaves roughness untouched.
+    device.queue.writeBuffer(materialsBuffer, 3 * 48, new Float32Array([keyColor[0] ?? 0, keyColor[1] ?? 0, keyColor[2] ?? 0, 1.0]));
+    device.queue.writeBuffer(materialsBuffer, 4 * 48, new Float32Array([fillColor[0] ?? 0, fillColor[1] ?? 0, fillColor[2] ?? 0, 1.0]));
+    frameCount = 0;
+    historyValid = false;
+  };
+
   return {
     start: () => {
       if (running) {
@@ -883,23 +914,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       updateSun();
     },
     setKeyLightIntensity: (scale: number) => {
-      // Scale the panel light color and its visible glow together, so
-      // a brighter panel really is brighter and not just more glow.
-      const clamped = Math.max(0, Math.min(3, scale));
-      const color: [number, number, number] = [
-        (LAMP_LIGHT.color[0] ?? 0) * clamped,
-        (LAMP_LIGHT.color[1] ?? 0) * clamped,
-        (LAMP_LIGHT.color[2] ?? 0) * clamped,
-      ];
-      const lights = [
-        { ...LAMP_LIGHT, color },
-        FILL_LIGHT,
-      ];
-      device.queue.writeBuffer(lightsBuffer, 0, lightsStorageData(lights));
-      // MAT_LAMP is material slot 3. Its base color is at byte 3 * 48.
-      device.queue.writeBuffer(materialsBuffer, 3 * 48, new Float32Array([color[0] ?? 0, color[1] ?? 0, color[2] ?? 0, 1.0]));
-      frameCount = 0;
-      historyValid = false;
+      keyLightScale = Math.max(0, Math.min(3, scale));
+      writeAreaLightIntensity();
+    },
+    setFillLightIntensity: (scale: number) => {
+      fillLightScale = Math.max(0, Math.min(3, scale));
+      writeAreaLightIntensity();
     },
     setSunSize: (value: number) => {
       camera.sunSize = Math.max(0, value);

@@ -74,6 +74,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const fillLightRange = document.querySelector<HTMLInputElement>('#fillLightRange');
+    if (fillLightRange) {
+      fillLightRange.addEventListener('input', () => {
+        context.setFillLightIntensity(Number(fillLightRange.value));
+      });
+    }
+
     const skyRange = document.querySelector<HTMLInputElement>('#skyRange');
     if (skyRange) {
       skyRange.addEventListener('input', () => {
