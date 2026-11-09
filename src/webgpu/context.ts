@@ -7,6 +7,7 @@ import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/trian
 import { defaultLights, lightsStorageData, LAMP_LIGHT, FILL_LIGHT } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
 import { ENV_MAP_WIDTH, ENV_MAP_HEIGHT, makeEnvMapData, toHalfFloatData } from '../scene/envMap';
+import { NORMAL_MAP_WIDTH, NORMAL_MAP_HEIGHT, normalMapData } from '../scene/normalMap';
 import { makeGemInstances, instanceWorldBounds, sceneInfoUniformData } from '../scene/instances';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
 import {
@@ -154,6 +155,18 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   writeEnvMap([0.4, 0.8, -0.4]);
   let envQueued = false;
   let latestSun: [number, number, number] = [0.4, 0.8, -0.4];
+
+  const normalTexture = device.createTexture({
+    size: [NORMAL_MAP_WIDTH, NORMAL_MAP_HEIGHT],
+    format: 'rgba8unorm',
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+  device.queue.writeTexture(
+    { texture: normalTexture, origin: [0, 0, 0] },
+    normalMapData(),
+    { bytesPerRow: NORMAL_MAP_WIDTH * 4, rowsPerImage: NORMAL_MAP_HEIGHT },
+    [NORMAL_MAP_WIDTH, NORMAL_MAP_HEIGHT, 1],
+  );
 
   const camera = createCamera();
 
@@ -540,6 +553,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 11, resource: motion.createView() },
         { binding: 12, resource: envTexture.createView() },
         { binding: 13, resource: envSampler },
+        { binding: 14, resource: normalTexture.createView() },
       ],
     });
 

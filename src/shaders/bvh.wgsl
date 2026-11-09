@@ -118,6 +118,9 @@ struct Material {
 // miss both sample it, so windows and the sun show up in mirror and glass.
 @group(0) @binding(12) var envMap: texture_2d<f32>;
 @group(0) @binding(13) var envSampler: sampler;
+// Procedural tangent space normal map. The shader builds planar world
+// coordinates from the surface normal, so triangles do not need UVs.
+@group(0) @binding(14) var normalMap: texture_2d<f32>;
 
 // Alpha cutout lattice. The screen is one quad in the BVH, so the shader
 // discards a hit when the world space pattern is transparent. Keeping
@@ -626,11 +629,20 @@ fn cosineHemisphere(n: vec3f, u1: f32, u2: f32) -> vec3f {
   return normalize(tangent * x + bitangent * y + n * z);
 }
 
-// Procedural surface detail. It bends the normal with a cheap world
-// space ripple, so large flat surfaces stop looking perfectly smooth.
+// Procedural normal map detail. It samples a tangent space normal map
+// with world space planar coordinates, so triangles do not need UVs.
 // Strength comes from the material detail field, so 0 keeps the mesh
-// normal untouched. A tangent frame is built from the normal itself,
-// so no UVs or texture data are needed.
+// normal untouched. The tangent frame is built from the normal itself.
+fn planarUv(pos: vec3f, n: vec3f) -> vec2f {
+  if (abs(n.y) >= abs(n.x) && abs(n.y) >= abs(n.z)) {
+    return vec2f(pos.x, pos.z);
+  }
+  if (abs(n.x) >= abs(n.y) && abs(n.x) >= abs(n.z)) {
+    return vec2f(pos.z, pos.y);
+  }
+  return vec2f(pos.x, pos.y);
+}
+
 fn applyDetail(n: vec3f, pos: vec3f, strength: f32) -> vec3f {
   if (strength <= 0.0) {
     return n;
@@ -641,12 +653,9 @@ fn applyDetail(n: vec3f, pos: vec3f, strength: f32) -> vec3f {
   }
   let tangent = normalize(cross(n, helper));
   let bitangent = normalize(cross(n, tangent));
-  let p = pos * 6.0;
-  let ripple1 = sin(p.x + sin(p.z * 1.3) * 2.0) * 0.6
-    + sin(p.y * 1.7 + sin(p.x * 0.9) * 2.0) * 0.4;
-  let ripple2 = sin(p.z * 1.1 + sin(p.y * 1.4) * 2.0) * 0.6
-    + sin(p.x * 1.3 + sin(p.z * 0.8) * 2.0) * 0.4;
-  let bend = (tangent * ripple1 + bitangent * ripple2) * strength;
+  let uv = fract(planarUv(pos, n) * 0.25);
+  let mapN = textureSampleLevel(normalMap, envSampler, uv, 0.0).rgb * 2.0 - 1.0;
+  let bend = (tangent * mapN.x + bitangent * mapN.y) * strength;
   return normalize(n + bend);
 }
 
