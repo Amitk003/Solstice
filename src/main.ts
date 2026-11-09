@@ -39,6 +39,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const temporalBlendRange = document.querySelector<HTMLInputElement>('#temporalBlendRange');
+    if (temporalBlendRange) {
+      temporalBlendRange.addEventListener('input', () => {
+        context.setTemporalBlend(Number(temporalBlendRange.value));
+      });
+    }
+
     const autoOrbitToggle = document.querySelector<HTMLInputElement>('#autoOrbitToggle');
     if (autoOrbitToggle) {
       autoOrbitToggle.addEventListener('change', () => {

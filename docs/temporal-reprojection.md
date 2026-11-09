@@ -25,8 +25,10 @@ The pass runs after the a-trous chain. For each pixel it:
 2. Loads the previous filtered color from that UV.
 3. Compares the current normal and hit distance with the values stored
    in the previous frame's G-buffer.
-4. Blends the previous color with the current color at a weight of 0.1
-   when the surface still matches.
+4. Blends the previous color with the current color at the Temporal
+   blend slider value when the surface still matches. The default
+   is 0.1 and the slider can raise it up to 1. See
+   `docs/temporal-blend.md`.
 
 A low blend weight keeps about ten frames of history. Edges get a
 stricter test: the normals must point the same way and the hit distance
@@ -67,7 +69,7 @@ refreshed with a buffer copy after the temporal pass.
   history that would still be valid.
 - The sky does not use history. It is procedural and smooth, so a
   single sample is already clean.
-- The blend weight is fixed. A future branch could adapt it to the
-  per pixel variance.
+- The blend weight is one value for the whole image. A future
+  branch could adapt it to the per pixel variance.
 - Thin geometry and fast motion can still show a short trail. The
   normal and depth test plus the colour clamp keep it small.

@@ -4,7 +4,7 @@
 // reused when the surface normal and hit distance still agree.
 struct Params {
   historyValid: u32,
-  _pad0: u32,
+  blendWeight: f32,
   _pad1: u32,
   _pad2: u32,
 }
@@ -17,9 +17,9 @@ struct Params {
 @group(0) @binding(5) var outTex: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(6) var<uniform> params: Params;
 
-// A low weight keeps roughly the last ten frames, which is enough to smooth
-// the one sample per frame input the denoiser sees while the camera moves.
-const BLEND_WEIGHT = 0.1;
+// A low weight keeps roughly the last ten frames, which is enough to
+// smooth the one sample per frame input the denoiser sees while the
+// camera moves. The panel can raise it for a more responsive image.
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) gid: vec3u) {
@@ -66,7 +66,7 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
             }
             let history = textureLoad(historyTex, prevCoord, 0);
             let clamped = clamp(history.rgb, lo, hi);
-            result = vec4f(mix(clamped, current.rgb, BLEND_WEIGHT), 1.0);
+            result = vec4f(mix(clamped, current.rgb, clamp(params.blendWeight, 0.0, 1.0)), 1.0);
           }
         }
       }
