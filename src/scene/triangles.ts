@@ -1,5 +1,5 @@
 import { FILL_LIGHT, LAMP_LIGHT } from './lights';
-import { MAT_FILL, MAT_FLOOR, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR, MAT_WAX } from './materials';
+import { MAT_FILL, MAT_FLOOR, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR, MAT_SCREEN, MAT_WAX } from './materials';
 import { faceNormal } from './geometry';
 import { objToTriangles } from './obj';
 import icosahedronSource from './assets/icosahedron.obj?raw';
@@ -39,6 +39,7 @@ export function makeTriangles(): TriangleData[] {
       offset: [-1.9, -0.8, 1.1],
     }),
     ...makeSphereTriangles([-0.6, -1.1, 1.5], 0.4, 16, 12, MAT_WAX),
+    ...makeScreenTriangles(),
   ];
 }
 
@@ -57,6 +58,20 @@ export function makeFloorTriangles(): TriangleData[] {
   return [
     withFaceNormals([-s, y, -s], [-s, y, s], [s, y, -s]),
     withFaceNormals([s, y, -s], [-s, y, s], [s, y, s]),
+  ];
+}
+
+// A vertical back screen. It is a full quad in the BVH, and the
+// material alpha test reads as a lattice.
+export function makeScreenTriangles(): TriangleData[] {
+  const z = -2.4;
+  const a: [number, number, number] = [-2.5, -1.2, z];
+  const b: [number, number, number] = [2.5, -1.2, z];
+  const c: [number, number, number] = [2.5, 2.0, z];
+  const d: [number, number, number] = [-2.5, 2.0, z];
+  return [
+    withFaceNormals(a, b, c, MAT_SCREEN),
+    withFaceNormals(a, c, d, MAT_SCREEN),
   ];
 }
 
