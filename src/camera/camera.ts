@@ -20,6 +20,7 @@ export interface Camera {
   focusOffset: number;
   sunSize: number;
   skyIntensity: number;
+  normalScale: number;
 }
 
 export function createCamera(): Camera {
@@ -43,6 +44,7 @@ export function createCamera(): Camera {
     focusOffset: 0,
     sunSize: 0.05,
     skyIntensity: 1,
+    normalScale: 0.25,
   };
   updateCamera(camera, 1);
   camera.prevViewProj.set(camera.viewProj);
@@ -120,7 +122,7 @@ export function cameraUniformData(
   updateCamera(camera, aspect);
   const light = vec3.normalize(camera.lightDir);
   // mat4 + eye + pad + light + pad + frame + flags + aperture + focus +
-  // sun size + sky + history flag + pad + previous view projection.
+  // sun size + sky + history flag + normal scale + previous view projection.
   const data = new Float32Array(48);
   data.set(camera.invViewProj, 0);
   data[16] = camera.eye[0] ?? 0;
@@ -138,7 +140,7 @@ export function cameraUniformData(
   data[28] = camera.sunSize;
   data[29] = camera.skyIntensity;
   new Uint32Array(data.buffer)[30] = historyValid ? 1 : 0;
-  data[31] = 0;
+  data[31] = camera.normalScale;
   data.set(camera.prevViewProj, 32);
   return data;
 }

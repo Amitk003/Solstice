@@ -46,6 +46,7 @@ the page and look around.
 - Adaptive sampling that skips the path trace once a pixel converges
 - Rectangular panel light for softer key shadows
 - Procedural tangent space normal map for flat surfaces, no assets needed
+- Normal map scale slider for world space tiling
 - Alpha cutout lattice with shadows through the holes
 - Two-level acceleration: per-mesh BLAS and a top-level TLAS for instances
 
