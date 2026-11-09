@@ -53,6 +53,7 @@ export interface RenderContext {
   setDenoiseEnabled: (enabled: boolean) => void;
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
+  setSaturation: (value: number) => void;
   setVignette: (enabled: boolean) => void;
   setAutoOrbit: (enabled: boolean) => void;
   resetCamera: () => void;
@@ -428,6 +429,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let exposureValue = 1.2;
   let toneMode = 0;
   let vignetteValue = 0;
+  let saturationValue = 1;
   let keyLightScale = 1;
   let fillLightScale = 1;
   const writeDisplayParams = (): void => {
@@ -435,6 +437,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     data[0] = exposureValue;
     new Uint32Array(data.buffer)[1] = toneMode;
     data[2] = vignetteValue;
+    data[3] = saturationValue;
     device.queue.writeBuffer(displayParamsBuffer, 0, data);
   };
   writeDisplayParams();
@@ -1067,6 +1070,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setToneMode: (mode: number) => {
       toneMode = Math.max(0, Math.min(2, Math.floor(mode)));
+      writeDisplayParams();
+    },
+    setSaturation: (value: number) => {
+      saturationValue = Math.max(0, Math.min(2, value));
       writeDisplayParams();
     },
     setVignette: (enabled: boolean) => {

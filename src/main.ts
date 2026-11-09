@@ -144,6 +144,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const saturationRange = document.querySelector<HTMLInputElement>('#saturationRange');
+    if (saturationRange) {
+      saturationRange.addEventListener('input', () => {
+        context.setSaturation(Number(saturationRange.value));
+      });
+    }
+
     const toneSelect = document.querySelector<HTMLSelectElement>('#toneSelect');
     if (toneSelect) {
       toneSelect.addEventListener('change', () => {
