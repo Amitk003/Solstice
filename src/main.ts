@@ -35,7 +35,7 @@ async function main(): Promise<void> {
     const resSelect = document.querySelector<HTMLSelectElement>('#resSelect');
     if (resSelect) {
       resSelect.addEventListener('change', () => {
-        context.setResolutionScale(Number(resSelect.value));
+        context.setResolutionScale(resSelect.value === 'auto' ? -1 : Number(resSelect.value));
       });
     }
 

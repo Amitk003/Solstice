@@ -243,6 +243,8 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let denoiseEnabled = true;
   let autoOrbit = false;
   let resScale = 1;
+  let dynamicResolution = false;
+  let lastScaleChange = 0;
   let viewMode = 0;
   let fps = 0;
   let gpuMemoryMB = 0;
@@ -737,6 +739,23 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     }
     lastTime = now;
 
+    if (dynamicResolution && now - lastScaleChange > 1500) {
+      const levels = [0.5, 0.75, 1];
+      let levelIndex = levels.indexOf(resScale);
+      if (levelIndex < 0) {
+        levelIndex = levels.length - 1;
+      }
+      if (fps > 0 && fps < 42 && levelIndex > 0) {
+        resScale = levels[levelIndex - 1] ?? 0.5;
+        lastScaleChange = now;
+        resize();
+      } else if (fps > 58 && levelIndex < levels.length - 1) {
+        resScale = levels[levelIndex + 1] ?? 1;
+        lastScaleChange = now;
+        resize();
+      }
+    }
+
     if (autoOrbit && !dragging) {
       orbitCamera(camera, 0.003, 0);
       frameCount = 0;
@@ -896,6 +915,16 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       historyValid = false;
     },
     setResolutionScale: (scale: number) => {
+      if (scale < 0) {
+        dynamicResolution = true;
+        lastScaleChange = performance.now();
+        if (resScale !== 1) {
+          resScale = 1;
+          resize();
+        }
+        return;
+      }
+      dynamicResolution = false;
       const clamped = Math.max(0.25, Math.min(1, scale));
       if (clamped !== resScale) {
         resScale = clamped;

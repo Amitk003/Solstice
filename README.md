@@ -33,6 +33,7 @@ the page and look around.
 - Camera pan with the arrow keys or WASD
 - Mouse wheel zoom for the orbit camera
 - HUD readout with frame time and resolution
+- Dynamic resolution that steps down when the frame rate drops
 - Focus offset slider to place the depth of field plane
 - Sun angle and height sliders that move the daylight and rebuild the sky
 - Key light slider that scales the panel light and its glow
