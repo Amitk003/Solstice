@@ -6,7 +6,7 @@ import { createCamera, cameraUniformData, orbitCamera, panCamera, zoomCamera } f
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData, LAMP_LIGHT, FILL_LIGHT } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
-import { ENV_MAP_WIDTH, ENV_MAP_HEIGHT, makeEnvMapData, toHalfFloatData } from '../scene/envMap';
+import { ENV_MAP_WIDTH, ENV_MAP_HEIGHT, DEFAULT_SUN_TINT, makeEnvMapData, toHalfFloatData } from '../scene/envMap';
 import { NORMAL_MAP_WIDTH, NORMAL_MAP_HEIGHT, normalMapData } from '../scene/normalMap';
 import { makeGemInstances, instanceWorldBounds, sceneInfoUniformData } from '../scene/instances';
 import { buildBvh, nodesToBuffer } from '../bvh/bvh';
@@ -42,6 +42,7 @@ export interface RenderContext {
   setFocusOffset: (value: number) => void;
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
+  setSunWarmth: (value: number) => void;
   setKeyLightIntensity: (scale: number) => void;
   setFillLightIntensity: (scale: number) => void;
   setSunSize: (value: number) => void;
@@ -136,6 +137,18 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
+  const sunParamsBuffer = device.createBuffer({
+    size: 16,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const writeSunParams = (color: [number, number, number]): void => {
+    device.queue.writeBuffer(
+      sunParamsBuffer,
+      0,
+      new Float32Array([color[0] ?? 1, color[1] ?? 1, color[2] ?? 1, 0]),
+    );
+  };
+  writeSunParams(DEFAULT_SUN_TINT);
 
   // The environment map holds the sun disk, so it is regenerated when
   // the sun moves. Otherwise it is created once and never resized.
@@ -150,17 +163,27 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     format: 'rgba16float',
     usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
   });
-  const writeEnvMap = (sun: [number, number, number]): void => {
+  const writeEnvMap = (sun: [number, number, number], sunTint: [number, number, number]): void => {
     device.queue.writeTexture(
       { texture: envTexture, origin: [0, 0, 0] },
-      toHalfFloatData(makeEnvMapData(sun)),
+      toHalfFloatData(makeEnvMapData(sun, sunTint)),
       { bytesPerRow: ENV_MAP_WIDTH * 8, rowsPerImage: ENV_MAP_HEIGHT },
       [ENV_MAP_WIDTH, ENV_MAP_HEIGHT, 1],
     );
   };
-  writeEnvMap([0.4, 0.8, -0.4]);
+  writeEnvMap([0.4, 0.8, -0.4], DEFAULT_SUN_TINT);
   let envQueued = false;
   let latestSun: [number, number, number] = [0.4, 0.8, -0.4];
+  let latestSunTint: [number, number, number] = DEFAULT_SUN_TINT;
+  const queueEnvMapUpdate = (): void => {
+    if (!envQueued) {
+      envQueued = true;
+      window.setTimeout(() => {
+        writeEnvMap(latestSun, latestSunTint);
+        envQueued = false;
+      }, 120);
+    }
+  };
 
   const normalTexture = device.createTexture({
     size: [NORMAL_MAP_WIDTH, NORMAL_MAP_HEIGHT],
@@ -560,6 +583,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
         { binding: 12, resource: envTexture.createView() },
         { binding: 13, resource: envSampler },
         { binding: 14, resource: normalTexture.createView() },
+        { binding: 15, resource: { buffer: sunParamsBuffer } },
       ],
     });
 
@@ -864,13 +888,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     historyValid = false;
     // Regenerating takes a few milliseconds, so batch rapid slider
     // moves into one upload per short window.
-    if (!envQueued) {
-      envQueued = true;
-      window.setTimeout(() => {
-        writeEnvMap(latestSun);
-        envQueued = false;
-      }, 120);
-    }
+    queueEnvMapUpdate();
   };
 
   // Area light colors are written to the light buffer and to the
@@ -985,6 +1003,21 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setSunElevation: (elevationDegrees: number) => {
       sunElevation = Math.max(2, Math.min(89, elevationDegrees));
       updateSun();
+    },
+    setSunWarmth: (value: number) => {
+      const t = Math.max(0, Math.min(1, value));
+      const cool: [number, number, number] = [0.85, 0.92, 1.0];
+      const warm: [number, number, number] = [1.05, 0.9, 0.7];
+      const color: [number, number, number] = [
+        (cool[0] ?? 0) + ((warm[0] ?? 0) - (cool[0] ?? 0)) * t,
+        (cool[1] ?? 0) + ((warm[1] ?? 0) - (cool[1] ?? 0)) * t,
+        (cool[2] ?? 0) + ((warm[2] ?? 0) - (cool[2] ?? 0)) * t,
+      ];
+      latestSunTint = color;
+      writeSunParams(color);
+      frameCount = 0;
+      historyValid = false;
+      queueEnvMapUpdate();
     },
     setKeyLightIntensity: (scale: number) => {
       keyLightScale = Math.max(0, Math.min(3, scale));

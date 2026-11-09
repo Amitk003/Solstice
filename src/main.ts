@@ -88,6 +88,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const sunWarmthRange = document.querySelector<HTMLInputElement>('#sunWarmthRange');
+    if (sunWarmthRange) {
+      sunWarmthRange.addEventListener('input', () => {
+        context.setSunWarmth(Number(sunWarmthRange.value));
+      });
+    }
+
     const keyLightRange = document.querySelector<HTMLInputElement>('#keyLightRange');
     if (keyLightRange) {
       keyLightRange.addEventListener('input', () => {
