@@ -46,6 +46,7 @@ struct BvhNode {
 // src/scene/instances.ts.
 const MAX_INSTANCES = 8u;
 const KIND_CUTOUT = 5u;
+const KIND_BLEND = 6u;
 
 struct Instance {
   inverse: mat4x4f,

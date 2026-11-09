@@ -11,6 +11,7 @@ export enum MaterialKind {
   Emissive = 3,
   Subsurface = 4,
   Cutout = 5,
+  Blend = 6,
 }
 
 export interface Material {
@@ -37,6 +38,7 @@ export const MAT_FILL = 4;
 export const MAT_GEM = 5;
 export const MAT_WAX = 6;
 export const MAT_SCREEN = 7;
+export const MAT_FOIL = 8;
 
 export const MATERIALS: Material[] = [
   {
@@ -123,6 +125,18 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [0.0, 0.0, 0.0],
     subsurface: 0.0,
+    detail: 0.0,
+  },
+  {
+    // A transparent foil. For this kind the subsurface field stores
+    // opacity, so 0.45 lets about half of the light continue.
+    kind: MaterialKind.Blend,
+    baseColor: [1.0, 0.95, 0.85],
+    roughness: 0.1,
+    ior: 1.0,
+    emission: 0.0,
+    absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.45,
     detail: 0.0,
   },
 ];
