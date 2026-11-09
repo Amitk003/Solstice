@@ -31,6 +31,7 @@ diffuse shading path as the floor. No new storage buffer is needed.
 
 - This is a procedural cutout, not a sampled alpha texture. There is
   no texture file and no UV unwrap.
+- For a transparent blend, see `docs/alpha-blend.md`.
 - Only the static screen uses the cutout material. Instanced meshes
   do not alpha test.
 - The BVH still spans the full quad. Transparent areas cost a little

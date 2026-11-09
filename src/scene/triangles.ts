@@ -1,5 +1,5 @@
 import { FILL_LIGHT, LAMP_LIGHT } from './lights';
-import { MAT_FILL, MAT_FLOOR, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR, MAT_SCREEN, MAT_WAX } from './materials';
+import { MAT_FILL, MAT_FLOOR, MAT_FOIL, MAT_GEM, MAT_GLASS, MAT_LAMP, MAT_MIRROR, MAT_SCREEN, MAT_WAX } from './materials';
 import { faceNormal } from './geometry';
 import { objToTriangles } from './obj';
 import icosahedronSource from './assets/icosahedron.obj?raw';
@@ -40,6 +40,7 @@ export function makeTriangles(): TriangleData[] {
     }),
     ...makeSphereTriangles([-0.6, -1.1, 1.5], 0.4, 16, 12, MAT_WAX),
     ...makeScreenTriangles(),
+    ...makeBlendTriangles(),
   ];
 }
 
@@ -58,6 +59,20 @@ export function makeFloorTriangles(): TriangleData[] {
   return [
     withFaceNormals([-s, y, -s], [-s, y, s], [s, y, -s]),
     withFaceNormals([s, y, -s], [-s, y, s], [s, y, s]),
+  ];
+}
+
+// A small transparent foil behind the cutout screen on the right.
+// Light that crosses it is attenuated and continues.
+export function makeBlendTriangles(): TriangleData[] {
+  const z = -2.6;
+  const a: [number, number, number] = [0.9, -0.4, z];
+  const b: [number, number, number] = [2.5, -0.4, z];
+  const c: [number, number, number] = [2.5, 1.0, z];
+  const d: [number, number, number] = [0.9, 1.0, z];
+  return [
+    withFaceNormals(a, b, c, MAT_FOIL),
+    withFaceNormals(a, c, d, MAT_FOIL),
   ];
 }
 

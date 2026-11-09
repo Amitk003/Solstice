@@ -46,6 +46,7 @@ struct BvhNode {
 // src/scene/instances.ts.
 const MAX_INSTANCES = 8u;
 const KIND_CUTOUT = 5u;
+const KIND_BLEND = 6u;
 
 struct Instance {
   inverse: mat4x4f,
@@ -205,7 +206,7 @@ fn isOccluded(origin: vec3f, dir: vec3f, maxT: f32) -> bool {
         let ti = triIndices[node.first + k];
         let tri = triangles[ti];
         let shadowT = intersectTriangle(origin, dir, tri).x;
-        if (shadowT > 0.0 && shadowT < maxT && !isCutoutDiscarded(tri.material, origin + dir * shadowT)) {
+        if (shadowT > 0.0 && shadowT < maxT && !isCutoutDiscarded(tri.material, origin + dir * shadowT) && materials[tri.material].kind != KIND_BLEND) {
           return true;
         }
         k = k + 1u;
@@ -748,6 +749,16 @@ fn tracePath(startOrigin: vec3f, startDir: vec3f, gid: vec2u) -> vec3f {
     if (isEmissive(hit.material)) {
       radiance = radiance + throughput * emissiveColor(hit.material);
       break;
+    }
+
+    // Alpha blend. The foil does not shade or block light. The path
+    // continues with the base color as a tint and the rest of the
+    // opacity removed, so the scene behind it stays visible.
+    if (mat.kind == KIND_BLEND) {
+      let alpha = clamp(mat.subsurface, 0.0, 1.0);
+      throughput = throughput * mat.baseColor * vec3f(1.0 - alpha);
+      origin = hitPos + dir * 0.002;
+      continue;
     }
 
     if (mat.kind == KIND_GLASS && bounceOn) {
