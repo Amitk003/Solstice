@@ -2,7 +2,7 @@ import traceSource from '../shaders/bvh.wgsl?raw';
 import blitSource from '../shaders/blit.wgsl?raw';
 import denoiseSource from '../shaders/denoise.wgsl?raw';
 import temporalSource from '../shaders/temporal.wgsl?raw';
-import { createCamera, cameraUniformData, orbitCamera, panCamera } from '../camera/camera';
+import { createCamera, cameraUniformData, orbitCamera, panCamera, zoomCamera } from '../camera/camera';
 import { makeTriangles, makeGemMesh, trianglesStorageData } from '../scene/triangles';
 import { defaultLights, lightsStorageData, LAMP_LIGHT, FILL_LIGHT } from '../scene/lights';
 import { MATERIALS, materialsStorageData } from '../scene/materials';
@@ -182,6 +182,17 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     dragging = false;
     canvas.style.cursor = 'grab';
   });
+  // The mouse wheel zooms the orbit radius. Moving the camera resets
+  // the trace accumulation but keeps the temporal history, like a drag.
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      zoomCamera(camera, event.deltaY * 0.002 * camera.radius);
+      frameCount = 0;
+    },
+    { passive: false },
+  );
   // Arrow keys and WASD pan the orbit target sideways. Sliders and the
   // select box keep their own arrow keys, so the pan ignores them.
   window.addEventListener('keydown', (event) => {

@@ -78,6 +78,12 @@ export function orbitCamera(camera: Camera, deltaAzimuth: number, deltaElevation
   camera.elevation = Math.max(-1.4, Math.min(1.4, camera.elevation + deltaElevation));
 }
 
+// Move the eye closer or farther from the orbit target. The context
+// sends a radius proportional step, so small wheel ticks feel even.
+export function zoomCamera(camera: Camera, deltaRadius: number): void {
+  camera.radius = Math.max(2.5, Math.min(8, camera.radius + deltaRadius));
+}
+
 // Move the orbit target sideways in the screen plane. Positive dx steps
 // right, positive dy steps up. The step shrinks with the orbit radius so
 // panning feels the same at any zoom.
