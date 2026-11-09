@@ -52,6 +52,7 @@ export interface RenderContext {
   setSkyIntensity: (value: number) => void;
   setDenoiseEnabled: (enabled: boolean) => void;
   setDenoiseStrength: (value: number) => void;
+  setTemporalBlend: (value: number) => void;
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
   setSaturation: (value: number) => void;
@@ -152,6 +153,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
 
   // One flag: whether the previous frame is safe to reuse. The temporal pass
   // ignores history on the first frame and after a resize or look change.
+  let temporalBlend = 0.1;
   const temporalParamsBuffer = device.createBuffer({
     size: 16,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -831,11 +833,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     const flags = (bounceEnabled ? 1 : 0) | (viewMode << 1);
     const uniformData = cameraUniformData(camera, aspect, frameCount, flags, useHistory);
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
-    device.queue.writeBuffer(
-      temporalParamsBuffer,
-      0,
-      new Uint32Array([useHistory ? 1 : 0, 0, 0, 0]),
-    );
+    const temporalParams = new Float32Array(4);
+    new Uint32Array(temporalParams.buffer)[0] = useHistory ? 1 : 0;
+    temporalParams[1] = temporalBlend;
+    device.queue.writeBuffer(temporalParamsBuffer, 0, temporalParams);
 
     const computePass = encoder.beginComputePass();
     computePass.setPipeline(computePipeline);
@@ -978,6 +979,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setDenoiseStrength: (value: number) => {
       denoiseStrength = Math.max(0, Math.min(1, value));
       updateStepBuffers();
+      historyValid = false;
+    },
+    setTemporalBlend: (value: number) => {
+      temporalBlend = Math.max(0.01, Math.min(1, value));
+      frameCount = 0;
       historyValid = false;
     },
     setResolutionScale: (scale: number) => {
