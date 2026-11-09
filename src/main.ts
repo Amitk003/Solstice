@@ -25,6 +25,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const autoOrbitToggle = document.querySelector<HTMLInputElement>('#autoOrbitToggle');
+    if (autoOrbitToggle) {
+      autoOrbitToggle.addEventListener('change', () => {
+        context.setAutoOrbit(autoOrbitToggle.checked);
+      });
+    }
+
     const resSelect = document.querySelector<HTMLSelectElement>('#resSelect');
     if (resSelect) {
       resSelect.addEventListener('change', () => {

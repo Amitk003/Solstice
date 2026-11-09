@@ -47,6 +47,7 @@ export interface RenderContext {
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
   setVignette: (enabled: boolean) => void;
+  setAutoOrbit: (enabled: boolean) => void;
   setCameraPreset: (preset: number) => void;
 }
 
@@ -240,6 +241,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let frameCount = 0;
   let bounceEnabled = true;
   let denoiseEnabled = true;
+  let autoOrbit = false;
   let resScale = 1;
   let viewMode = 0;
   let fps = 0;
@@ -735,6 +737,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     }
     lastTime = now;
 
+    if (autoOrbit && !dragging) {
+      orbitCamera(camera, 0.003, 0);
+      frameCount = 0;
+    }
+
     const aspect = canvas.width / canvas.height;
     const flags = (bounceEnabled ? 1 : 0) | (viewMode << 1);
     const uniformData = cameraUniformData(camera, aspect, frameCount, flags, useHistory);
@@ -953,6 +960,9 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     setVignette: (enabled: boolean) => {
       vignetteValue = enabled ? 1 : 0;
       writeDisplayParams();
+    },
+    setAutoOrbit: (enabled: boolean) => {
+      autoOrbit = enabled;
     },
     setCameraPreset: (preset: number) => {
       // A camera jump is a camera move, so the trace accumulation resets

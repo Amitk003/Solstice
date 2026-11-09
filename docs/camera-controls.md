@@ -8,6 +8,8 @@ target.
 - Pointer down starts dragging.
 - Pointer move changes azimuth and elevation.
 - Pointer up stops dragging.
+- Auto orbit slowly changes the azimuth until you turn it off. See
+  `docs/auto-orbit.md`.
 - Mouse wheel zooms the orbit radius. See `docs/camera-zoom.md`.
 - Arrow keys and WASD pan the orbit target. See
   `docs/camera-pan.md`.
