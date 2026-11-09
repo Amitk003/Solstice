@@ -248,7 +248,7 @@ async function main(): Promise<void> {
     window.setInterval(() => {
       const stats = context.getStats();
       const mode = modeNames[viewMode] ?? 'shaded';
-      status.textContent = `Solstice | ${mode} | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | ${stats.ms.toFixed(1)} ms | ${stats.width}x${stats.height} | ~${stats.gpuMemoryMB.toFixed(0)} MB | ${stats.adapter} | bvh ${stats.bvh} | drag to orbit, wheel to zoom`;
+      status.textContent = `Solstice | ${mode} | samples ${stats.samples} | ${stats.fps.toFixed(0)} fps | ${stats.ms.toFixed(1)} ms | ${stats.width}x${stats.height} | ~${stats.gpuMemoryMB.toFixed(0)} MB | ${stats.adapter} | nodes ${stats.nodes} tris ${stats.triangles} pad ${stats.paddedIndices} | bvh ${stats.bvh} | drag to orbit, wheel to zoom`;
     }, 500);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
