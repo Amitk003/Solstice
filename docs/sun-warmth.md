@@ -21,4 +21,6 @@ changes.
 
 - The slider only tints the sun. The key and fill lamps keep their
   own colors.
+- The Sun light slider controls how strong the sun is. See
+  `docs/sun-intensity.md`.
 - The windows in the environment map stay the same color.
