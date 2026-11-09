@@ -32,6 +32,7 @@ the page and look around.
 - Camera preset buttons for saved views
 - Camera pan with the arrow keys or WASD
 - Mouse wheel zoom for the orbit camera
+- Camera field of view slider
 - HUD readout with frame time and resolution
 - Dynamic resolution that steps down when the frame rate drops
 - Focus offset slider to place the depth of field plane

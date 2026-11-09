@@ -37,6 +37,7 @@ export interface RenderContext {
   setResolutionScale: (scale: number) => void;
   setViewMode: (mode: number) => void;
   setAperture: (value: number) => void;
+  setFovDegrees: (value: number) => void;
   setFocusOffset: (value: number) => void;
   setSunAngle: (azimuthDegrees: number) => void;
   setSunElevation: (elevationDegrees: number) => void;
@@ -957,6 +958,11 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       camera.aperture = Math.max(0, value);
       frameCount = 0;
       historyValid = false;
+    },
+    setFovDegrees: (value: number) => {
+      const clamped = Math.max(20, Math.min(110, value));
+      camera.fovYRadians = (clamped * Math.PI) / 180;
+      frameCount = 0;
     },
     setFocusOffset: (value: number) => {
       camera.focusOffset = Math.max(-2, Math.min(4, value));
