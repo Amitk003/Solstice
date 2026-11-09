@@ -11,7 +11,7 @@ struct Camera {
   sunSize: f32,
   skyIntensity: f32,
   historyValid: u32,
-  _pad5: f32,
+  normalScale: f32,
   // View projection of the previous frame, used to build motion vectors.
   prevViewProj: mat4x4f,
 }
@@ -661,7 +661,7 @@ fn applyDetail(n: vec3f, pos: vec3f, strength: f32) -> vec3f {
   }
   let tangent = normalize(cross(n, helper));
   let bitangent = normalize(cross(n, tangent));
-  let uv = fract(planarUv(pos, n) * 0.25);
+  let uv = fract(planarUv(pos, n) * camera.normalScale);
   let mapN = textureSampleLevel(normalMap, envSampler, uv, 0.0).rgb * 2.0 - 1.0;
   let bend = (tangent * mapN.x + bitangent * mapN.y) * strength;
   return normalize(n + bend);

@@ -67,6 +67,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const normalScaleRange = document.querySelector<HTMLInputElement>('#normalScaleRange');
+    if (normalScaleRange) {
+      normalScaleRange.addEventListener('input', () => {
+        context.setNormalMapScale(Number(normalScaleRange.value));
+      });
+    }
+
     const sunRange = document.querySelector<HTMLInputElement>('#sunRange');
     if (sunRange) {
       sunRange.addEventListener('input', () => {
