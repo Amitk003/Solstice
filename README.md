@@ -30,6 +30,7 @@ the page and look around.
 - Debug views for normals, depth, and albedo
 - Camera preset buttons for saved views
 - Camera pan with the arrow keys or WASD
+- Mouse wheel zoom for the orbit camera
 - HUD readout with frame time and resolution
 - Focus offset slider to place the depth of field plane
 - Sun angle and height sliders that move the daylight and rebuild the sky
