@@ -25,3 +25,5 @@ export uses the same value as the screen.
 
 - The control is one number for all channels. There is no per
   channel color balance.
+- Contrast is a separate display slider. See
+  `docs/contrast-control.md`.

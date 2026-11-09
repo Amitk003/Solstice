@@ -56,6 +56,7 @@ export interface RenderContext {
   setExposure: (value: number) => void;
   setToneMode: (mode: number) => void;
   setSaturation: (value: number) => void;
+  setContrast: (value: number) => void;
   setVignette: (enabled: boolean) => void;
   setAutoOrbit: (enabled: boolean) => void;
   resetCamera: () => void;
@@ -439,21 +440,23 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   // Display settings for the tone mapper. They only change the tone map,
   // never the traced radiance, so they need no sample reset.
   const displayParamsBuffer = device.createBuffer({
-    size: 16,
+    size: 32,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
   let exposureValue = 1.2;
   let toneMode = 0;
   let vignetteValue = 0;
   let saturationValue = 1;
+  let contrastValue = 1;
   let keyLightScale = 1;
   let fillLightScale = 1;
   const writeDisplayParams = (): void => {
-    const data = new Float32Array(4);
+    const data = new Float32Array(8);
     data[0] = exposureValue;
     new Uint32Array(data.buffer)[1] = toneMode;
     data[2] = vignetteValue;
     data[3] = saturationValue;
+    data[4] = contrastValue;
     device.queue.writeBuffer(displayParamsBuffer, 0, data);
   };
   writeDisplayParams();
@@ -1099,6 +1102,10 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
     },
     setSaturation: (value: number) => {
       saturationValue = Math.max(0, Math.min(2, value));
+      writeDisplayParams();
+    },
+    setContrast: (value: number) => {
+      contrastValue = Math.max(0.5, Math.min(1.5, value));
       writeDisplayParams();
     },
     setVignette: (enabled: boolean) => {

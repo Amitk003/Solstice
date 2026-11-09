@@ -165,6 +165,13 @@ async function main(): Promise<void> {
       });
     }
 
+    const contrastRange = document.querySelector<HTMLInputElement>('#contrastRange');
+    if (contrastRange) {
+      contrastRange.addEventListener('input', () => {
+        context.setContrast(Number(contrastRange.value));
+      });
+    }
+
     const toneSelect = document.querySelector<HTMLSelectElement>('#toneSelect');
     if (toneSelect) {
       toneSelect.addEventListener('change', () => {
