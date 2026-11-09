@@ -25,7 +25,7 @@ the page and look around.
   and subsurface scattering
 - One click PNG export of the tone mapped frame
 - Pause and resume button for the render loop
-- Exposure and saturation sliders for the display pass, with no sample reset
+- Exposure, saturation, and contrast sliders for the display pass, with no sample reset
 - Tone mapper choice: ACES, Reinhard, or linear
 - Frosted glass that blurs with its roughness value
 - Debug views for normals, depth, albedo, roughness, and emission
