@@ -14,15 +14,20 @@ fn vs(@builtin(vertex_index) vi: u32) -> VsOut {
   return out;
 }
 
-// Display settings, padded to 16 bytes for the uniform buffer. mode
+// Display settings, padded to 32 bytes for the uniform buffer. mode
 // selects the tone mapper: 0 is ACES, 1 is Reinhard, 2 is linear.
 // vignette is the strength of the edge darkening, 0 is off.
 // saturation scales color around luminance, 1 is full color.
+// contrast scales the tone mapped color around mid gray, 1 is none.
 struct Params {
   exposure: f32,
   mode: u32,
   vignette: f32,
   saturation: f32,
+  contrast: f32,
+  _pad0: f32,
+  _pad1: f32,
+  _pad2: f32,
 }
 
 @group(0) @binding(0) var tex: texture_2d<f32>;
@@ -56,6 +61,8 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   }
   let luminance = dot(mapped, vec3f(0.2126, 0.7152, 0.0722));
   mapped = mix(vec3f(luminance), mapped, clamp(params.saturation, 0.0, 2.0));
+  let mid = vec3f(0.18);
+  mapped = (mapped - mid) * clamp(params.contrast, 0.5, 1.5) + mid;
   let dist = distance(in.uv, vec2f(0.5, 0.5));
   let vig = 1.0 - smoothstep(0.35, 0.75, dist);
   mapped = mapped * mix(1.0, vig, clamp(params.vignette, 0.0, 1.0));
