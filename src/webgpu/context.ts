@@ -23,6 +23,7 @@ export interface RenderStats {
   ms: number;
   width: number;
   height: number;
+  gpuMemoryMB: number;
   bvh: string;
 }
 
@@ -230,6 +231,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
   let resScale = 1;
   let viewMode = 0;
   let fps = 0;
+  let gpuMemoryMB = 0;
   let lastTime = 0;
   // The trace accumulation resets on a camera move, but the temporal history
   // survives so the reprojected image stays clean. This flag is cleared after
@@ -487,6 +489,12 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       format: 'rgba16float',
       usage: filterUsage,
     });
+
+    // Estimate the large per-frame resources only: six rgba16float
+    // textures (48 bytes per pixel) plus the accumulation, G-buffer,
+    // history, and moments buffers (56 bytes per pixel). The static
+    // scene buffers and small uniform buffers are not included.
+    gpuMemoryMB = (pixelCount * 104 + ENV_MAP_WIDTH * ENV_MAP_HEIGHT * 8) / 1048576;
 
     const gbuf = gbufferBuffer;
     const gbufHistory = gbufferHistoryBuffer;
@@ -825,6 +833,7 @@ export async function initWebGpu(canvas: HTMLCanvasElement): Promise<RenderConte
       ms: fps > 0 ? 1000 / fps : 0,
       width: canvas.width,
       height: canvas.height,
+      gpuMemoryMB,
       bvh: bvhSource,
     }),
     captureImage,

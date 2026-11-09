@@ -36,6 +36,7 @@ the page and look around.
 - Key light slider that scales the panel light and its glow
 - Vignette toggle for the display pass
 - Responsive control panel that wraps on small screens
+- Memory estimate in the HUD for the main frame resources
 - Firefly clamp that stops single sample spikes
 - Adaptive sampling that skips the path trace once a pixel converges
 - Rectangular panel light for softer key shadows
