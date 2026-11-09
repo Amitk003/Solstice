@@ -10,6 +10,7 @@ export enum MaterialKind {
   Glass = 2,
   Emissive = 3,
   Subsurface = 4,
+  Cutout = 5,
 }
 
 export interface Material {
@@ -35,6 +36,7 @@ export const MAT_LAMP = 3;
 export const MAT_FILL = 4;
 export const MAT_GEM = 5;
 export const MAT_WAX = 6;
+export const MAT_SCREEN = 7;
 
 export const MATERIALS: Material[] = [
   {
@@ -108,6 +110,19 @@ export const MATERIALS: Material[] = [
     emission: 0.0,
     absorption: [1.0, 2.5, 5.0],
     subsurface: 1.0,
+    detail: 0.0,
+  },
+  {
+    // A cutout lattice. The shader discards hits where the world space
+    // pattern is transparent, so the screen reads as bars instead of a
+    // solid panel.
+    kind: MaterialKind.Cutout,
+    baseColor: [0.62, 0.68, 0.76],
+    roughness: 0.65,
+    ior: 1.0,
+    emission: 0.0,
+    absorption: [0.0, 0.0, 0.0],
+    subsurface: 0.0,
     detail: 0.0,
   },
 ];

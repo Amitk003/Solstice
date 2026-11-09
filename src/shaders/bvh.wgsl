@@ -510,6 +510,7 @@ const KIND_MIRROR = 1u;
 const KIND_GLASS = 2u;
 const KIND_EMISSIVE = 3u;
 const KIND_SUBSURFACE = 4u;
+const KIND_CUTOUT = 5u;
 
 fn isEmissive(index: u32) -> bool {
   return materials[index].kind == KIND_EMISSIVE;
