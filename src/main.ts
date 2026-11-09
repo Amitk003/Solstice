@@ -1,4 +1,5 @@
 import { initWebGpu } from './webgpu/context';
+import { webGpuSupportMessage } from './webgpu/support';
 
 async function main(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#canvas');
@@ -8,6 +9,12 @@ async function main(): Promise<void> {
   }
 
   try {
+    const supportMessage = webGpuSupportMessage();
+    if (supportMessage) {
+      status.textContent = supportMessage;
+      return;
+    }
+
     const context = await initWebGpu(canvas);
     context.start();
 
