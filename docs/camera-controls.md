@@ -11,6 +11,8 @@ target.
 - Auto orbit slowly changes the azimuth until you turn it off. See
   `docs/auto-orbit.md`.
 - Mouse wheel zooms the orbit radius. See `docs/camera-zoom.md`.
+- The FOV slider changes the vertical field of view. See
+  `docs/camera-fov.md`.
 - Arrow keys and WASD pan the orbit target. See
   `docs/camera-pan.md`.
 
