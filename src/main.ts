@@ -158,6 +158,13 @@ async function main(): Promise<void> {
       });
     });
 
+    const resetViewButton = document.querySelector<HTMLButtonElement>('#resetViewButton');
+    if (resetViewButton) {
+      resetViewButton.addEventListener('click', () => {
+        context.resetCamera();
+      });
+    }
+
     const pauseButton = document.querySelector<HTMLButtonElement>('#pauseButton');
     if (pauseButton) {
       let running = true;
