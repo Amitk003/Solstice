@@ -9,12 +9,14 @@ without lighting in the way.
 - 2: world normals as color
 - 3: depth as gray (near is bright)
 - 4: albedo as color (the material base color, no lighting)
+- 5: roughness as gray
+- 6: emission as color
 
 ## What changed
 
 - The quality flags now carry a view mode in bits 1 and 2.
-- The trace kernel outputs normal, depth, or albedo color for those
-  modes.
+- The trace kernel outputs normal, depth, albedo, roughness, or
+  emission color for those modes.
 - Switching modes resets accumulation.
 - The status line names the active mode.
 

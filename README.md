@@ -27,7 +27,7 @@ the page and look around.
 - Exposure slider for the display pass, with no sample reset
 - Tone mapper choice: ACES, Reinhard, or linear
 - Frosted glass that blurs with its roughness value
-- Debug views for normals, depth, and albedo
+- Debug views for normals, depth, albedo, roughness, and emission
 - Camera preset buttons for saved views
 - Camera pan with the arrow keys or WASD
 - Mouse wheel zoom for the orbit camera
